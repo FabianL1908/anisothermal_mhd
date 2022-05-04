@@ -1,0 +1,15 @@
+fig/test_figure.pdf: data/diagram_u/34.csv
+fig/test_figure.pdf: data/StabilityFigures/34_real_2.csv
+fig/test_figure.pdf: data/StabilityFigures/34_real_3.csv
+fig/test_figure.pdf: data/StabilityFigures/34_real_4.csv
+fig/test_figure.pdf: data/StabilityFigures/34_real_5.csv
+fig/test_figure.pdf: data/StabilityFigures/34_real_6.csv
+fig/test_figure.pdf: data/StabilityFigures/34_real_8.csv
+fig/test_figure.pdf: data/StabilityFigures/34_real_1.csv
+fig/test_figure.pdf: data/diagram_T/34.csv
+fig/test_figure.pdf: data/StabilityFigures/34_imag_2.csv
+fig/test_figure.pdf: data/StabilityFigures/34_imag_3.csv
+fig/test_figure.pdf: data/StabilityFigures/34_imag_4.csv
+fig/test_figure.pdf: data/StabilityFigures/34_imag_5.csv
+fig/test_figure.pdf: data/StabilityFigures/34_imag_6.csv
+fig/test_figure.pdf: data/StabilityFigures/34_imag_1.csv
