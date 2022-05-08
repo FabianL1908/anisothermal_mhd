@@ -3,6 +3,7 @@ from __future__ import absolute_import, print_function
 import sys
 import os
 import gc
+import argparse
 
 from firedrake import *
 from firedrake.mg.utils import get_level
@@ -25,7 +26,12 @@ RB = __import__("rayleigh-benard")
 
 #branchids = [44]
 #branchids = [34,54,63,64,89]
-branchids = [0, 38, 2, 42, 166, 161]
+
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument("--branchids", nargs='+', type=int, default=[1])
+args, _ = parser.parse_known_args()
+branchids = args.branchids
+#branchids = [0, 38, 2, 42, 166, 161]
 
 comm = COMM_WORLD
 
