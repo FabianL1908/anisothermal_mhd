@@ -57,9 +57,9 @@ except FileExistsError:
 for branchid in branchids:
     # Parameters
     fixed_params = problem.target_parameter_values()
-    knownparams = io.known_parameters(fixed={"Pr": fixed_params["Pr"],
-                                             "S": fixed_params["S"],
-                                             "Pm": fixed_params["Pm"]}, branchid=branchid)
+    knownparams = io.known_parameters(fixed={"Pr": fixed_params["Pr"][0],
+                                             "S": fixed_params["S"][0],
+                                             "Pm": fixed_params["Pm"][0]}, branchid=branchid)
     knownparams_Ra = np.array([l[0] for l in knownparams])
     Nu = np.array([])
     NT = np.array([])
