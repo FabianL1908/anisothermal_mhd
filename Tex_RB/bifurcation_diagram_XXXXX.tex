@@ -1,0 +1,288 @@
+\documentclass{standalone}
+
+% User packages:
+% ======================================================================
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{epsfig}
+\usepackage[hang,nooneline]{subfigure}
+\usepackage[normalem]{ulem}
+\usepackage{color}
+\usepackage{braket}
+\usepackage{hyperref}
+\usepackage{todonotes}
+\usepackage{algorithm}
+\usepackage{multirow}
+\usepackage{hhline}
+\usepackage{shortvrb}
+\usepackage{cprotect}
+\usepackage[noend]{algpseudocode}
+\usepackage{overpic}
+\usepackage{cleveref}
+\usepackage{readarray}
+% Tikz plot
+\usepackage{csvsimple}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepgfplotslibrary{colorbrewer}
+
+\makeatletter
+
+\def\pgfplots@getautoplotspec into#1{%
+    \begingroup
+    \let#1=\pgfutil@empty
+    \pgfkeysgetvalue{/pgfplots/cycle multi list/@dim}\pgfplots@cycle@dim
+    %
+    \let\pgfplots@listindex=\pgfplots@numplots
+    %%% Start new code
+    \pgfkeysgetvalue{/pgfplots/cycle list set}\pgfplots@listindex@set
+    \ifx\pgfplots@listindex@set\pgfutil@empty
+    \else 
+        \c@pgf@counta=\pgfplots@listindex
+        \c@pgf@countb=\pgfplots@listindex@set
+        \advance\c@pgf@countb by -\c@pgf@counta
+        \globaldefs=1\relax
+        \edef\setshift{%
+            \noexpand\pgfkeys{
+                /pgfplots/cycle list shift=\the\c@pgf@countb,
+                /pgfplots/cycle list set=
+            }
+        }%
+        \setshift%
+    \fi
+    %%% End new code    
+    \pgfkeysgetvalue{/pgfplots/cycle list shift}\pgfplots@listindex@shift
+    \ifx\pgfplots@listindex@shift\pgfutil@empty
+    \else
+        \c@pgf@counta=\pgfplots@listindex\relax
+        \advance\c@pgf@counta by\pgfplots@listindex@shift\relax
+        \ifnum\c@pgf@counta<0
+            \c@pgf@counta=-\c@pgf@counta
+        \fi
+        \edef\pgfplots@listindex{\the\c@pgf@counta}%
+    \fi
+    \ifnum\pgfplots@cycle@dim>0
+        % use the 'cycle multi list' feature.
+        %
+        % it employs a scalar -> multiindex map like
+        % void fromScalar( size_t d, size_t scalar, size_t* Iout, const size_t* N )
+        % {
+        %   size_t ret=scalar;
+        %   for( int i = d-1; i>=0; --i ) {
+        %       Iout[i] = ret % N[i];
+        %       ret /= N[i];
+        %   }
+        % }
+        % to get the different indices into the cycle lists.
+        %-------------------------------------------------- 
+        \c@pgf@counta=\pgfplots@cycle@dim\relax
+        \c@pgf@countb=\pgfplots@listindex\relax
+        \advance\c@pgf@counta by-1
+        \pgfplotsloop{%
+            \ifnum\c@pgf@counta<0
+                \pgfplotsloopcontinuefalse
+            \else
+                \pgfplotsloopcontinuetrue
+            \fi
+        }{%
+            \pgfkeysgetvalue{/pgfplots/cycle multi list/@N\the\c@pgf@counta}\pgfplots@cycle@N
+            % compute list index:
+            \pgfplotsmathmodint{\c@pgf@countb}{\pgfplots@cycle@N}%
+            \divide\c@pgf@countb by \pgfplots@cycle@N\relax
+            %
+            \expandafter\pgfplots@getautoplotspec@
+                \csname pgfp@cyclist@/pgfplots/cycle multi list/@list\the\c@pgf@counta @\endcsname
+                {\pgfplots@cycle@N}%
+                {\pgfmathresult}%
+            \t@pgfplots@toka=\expandafter{#1,}%
+            \t@pgfplots@tokb=\expandafter{\pgfplotsretval}%
+            \edef#1{\the\t@pgfplots@toka\the\t@pgfplots@tokb}%
+            \advance\c@pgf@counta by-1
+        }%
+    \else
+        % normal cycle list:
+        \pgfplotslistsize\autoplotspeclist\to\c@pgf@countd
+        \pgfplots@getautoplotspec@{\autoplotspeclist}{\c@pgf@countd}{\pgfplots@listindex}%
+        \let#1=\pgfplotsretval
+    \fi
+    \pgfmath@smuggleone#1%
+    \endgroup
+}
+
+\pgfplotsset{
+    cycle list set/.initial=
+}
+\pgfplotsset{cycle list/Set1}
+
+\colorlet{MyGreen}{green!50!black}
+
+\usetikzlibrary{external}
+% Comment out the next three lines for faster compilation time
+\usepgfplotslibrary{external}
+\pgfplotsset{compat=1.15}
+\tikzexternalize[optimize=false,prefix=fig/] % or false
+%\tikzexternalize[optimize=false] % or false
+
+%%% MIKTEX options
+%"C:/Program Files/MiKTeX 2.9/miktex/bin/x64/pdflatex.exe" -synctex=1 -%interaction=nonstopmode --shell-escape -enable-write18 %.tex
+%
+%\tikzset{external/system call= {pdflatex --save-size=80000 
+%                           --pool-size=10000000 
+%                           --extra-mem-top=50000000 
+%                           --extra-mem-bot=10000000 
+%                           --main-memory=90000000 
+%                           \tikzexternalcheckshellescape 
+%                           -halt-on-error 
+%                           -interaction=batchmode
+%                           -jobname "\image" "\texsource"}}
+                           
+\tikzset{external/system call= {lualatex
+                           -enable-write18
+                           -halt-on-error 
+                           -shell-escape 
+                           -synctex=1
+                           -interaction=nonstopmode
+                           -jobname "\image" "\texsource"}}
+\begin{document}
+\tikzset{>=latex}
+
+\def\branchidss{%
+XXXXX
+}
+\readarray\branchidss\branchids[1,12]
+
+\tikzsetnextfilename{3}
+\begin{tikzpicture}
+\begin{axis}[xmin=0, xmax=10^5, ymin=0, ymax=3500, 
+x label style={at={(0.5,-0.07)}}, xlabel={$\textrm{Ra}$},
+y label style={at={(-0.2,0.4)},rotate=-90,anchor=south},ylabel={$\|\mathbf{u}\|_2^2$},  every x tick scale label/.style={at={(xticklabel cs:1)},anchor=south west, yshift=-0.11em},xtick scale label code/.code={\pgfmathparse{int(#1)}$\times 10^{\pgfmathresult}$}, ytick={0,1000,2000,3000,3500}]
+\addplot[red, dashed,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/\branchids[1,1].csv};
+\addplot[violet,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/\branchids[1,2].csv};
+\addplot[MyGreen, dashed,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/\branchids[1,3].csv};
+\addplot[teal,line width=0.6] table [col sep=comma, smooth,mark=none,forget plot] {data/diagram_u/\branchids[1,4].csv};
+\addplot[violet, dashed,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/\branchids[1,5].csv};
+%\addplot[MyGreen,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/18.csv};
+\addplot[red,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/\branchids[1,6].csv};
+\addplot[blue,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/\branchids[1,7].csv};
+\addplot[brown,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/\branchids[1,8].csv};
+\addplot[blue, dashed,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/\branchids[1,9].csv};
+\addplot[orange, dashed, line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/\branchids[1,10].csv};
+\addplot[orange, line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/\branchids[1,11].csv};
+\addplot[MyGreen, line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/\branchids[1,12].csv};
+
+%\node at (axis cs:80000, 2800) (36) [scale = 1.0] {(1)};
+%\node at (axis cs:23000, 1000) (0) [scale = 1.0] {(2)};
+%\node at (axis cs:30000, 576.2) (0A) {};
+%\draw [->] (0) -- (0A.center);
+
+%\node at (axis cs:40000, 580) (8) [scale = 1.0] {(10)};
+%\node at (axis cs:72000, 870) (116) [scale = 1.0] {(12)};
+%\node at (axis cs:63150, 787.9) (116A) {};
+%\draw [->] (116) -- (116A.center);
+%\node at (axis cs:94000, 900) (14) [scale = 1.0] {(4)};
+%\node at (axis cs:96000, 1200) (14) [scale = 1.0] {(5)};
+%\node at (axis cs:50000, 130) (18) [scale = 1.0] {(6)};
+%\node at (axis cs:65000, 350) (18) [scale = 1.0] {(7)};
+%\node at (axis cs:88000, 200) (737) [scale = 1.0] {(9)};
+\end{axis}
+
+%\begin{scope}[scale = 0.7, xshift=10mm, yshift= 47mm,]
+%\begin{axis}[scale=0.55, xmin=3*10^4, xmax=4*10^4, ymin=100, ymax = 350, legend pos=north west, legend cell align={left}, x label style={at={(0.5,-0.09)}}, xlabel={$\textrm{Ra}$}, every x tick scale label/.style={at={(xticklabel cs:1)},anchor=south west, yshift=-0.11em},xtick scale label code/.code={\pgfmathparse{int(#1)}$\times 10^{\pgfmathresult}$}, ]
+%\addplot[red, dashed,line width=0.6] table [col sep=comma, smooth,mark=none,forget plot] {../diagram_u/36.csv};
+%\addplot[blue, dashed,line width=0.6] table [col sep=comma, smooth,mark=none,forget plot] {../diagram_u/8.csv};
+%\addplot[MyGreen, dashed,line width=0.6] table [col sep=comma, smooth,mark=none,forget plot] {../new_branches/diagram_u/0_bis.csv};
+%\addplot[MyGreen, dashed, line width=0.6] table [col sep=comma, smooth,mark=none,forget plot] {../new_branches/diagram_u/4_bis.csv};
+%\addplot[teal,line width=0.6] table [col sep=comma, smooth,mark=none,forget plot] {../diagram_u/116_bis.csv};
+%\addplot[violet, dashed,line width=0.6] table [col sep=comma, smooth,mark=none,forget plot] {../diagram_u/14.csv};
+%\addplot[orange,dashed,line width=0.6] table [col sep=comma, smooth,mark=none,forget plot] {../new_branches/diagram_u/34.csv};
+%\addplot[MyGreen,line width=0.6] table [col sep=comma, smooth,mark=none,forget plot] {../new_branches/diagram_u/89.csv};
+%\addplot[orange,line width=0.6] table [col sep=comma, smooth,mark=none,forget plot] {../new_branches/diagram_u/44.csv};
+%\addplot[red,line width=0.6] table [col sep=comma, smooth,mark=none] {../diagram_u/400.csv};
+%\addplot[red,line width=0.6] table [col sep=comma, smooth,mark=none,forget plot] {../diagram_u/90.csv};
+%\addplot[blue,line width=0.6] table [col sep=comma, smooth,mark=none] {../diagram_u/284.csv};
+%\addlegendentry{(11)};
+%\addlegendentry{(8)};
+%\end{axis}
+%\end{scope}
+
+\begin{axis}[xshift=280, xmin=0, xmax=10^5, x label style={at={(0.5,-0.07)}}, xlabel={$\textrm{Ra}$},
+y label style={at={(-0.2,0.4)},rotate=-90,anchor=south},ylabel={$\|T\|_2^2$},  every x tick scale label/.style={at={(xticklabel cs:1)},anchor=south west, yshift=-0.11em},xtick scale label code/.code={\pgfmathparse{int(#1)}$\times 10^{\pgfmathresult}$}, ytick={0.22,0.25,0.3,0.35,0.4}]
+%\draw[black,line width=0.6] 
+%  (axis cs:\pgfkeysvalueof{/pgfplots/xmin},0.3333) -- 
+%  (axis cs:\pgfkeysvalueof{/pgfplots/xmax},0.3333);
+
+\addplot[red, dashed,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/\branchids[1,1].csv};
+\addplot[violet,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/\branchids[1,2].csv};
+\addplot[MyGreen, dashed,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/\branchids[1,3].csv};
+\addplot[teal,line width=0.6] table [col sep=comma, smooth,mark=none,forget plot] {data/diagram_T/\branchids[1,4].csv};
+\addplot[violet, dashed,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/\branchids[1,5].csv};
+%\addplot[MyGreen,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/18.csv};
+\addplot[red,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/\branchids[1,6].csv};
+\addplot[blue,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/\branchids[1,7].csv};
+\addplot[brown,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/\branchids[1,8].csv};
+\addplot[blue, dashed,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/\branchids[1,9].csv};
+\addplot[orange, dashed, line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/\branchids[1,10].csv};
+\addplot[orange, line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/\branchids[1,11].csv};
+\addplot[MyGreen, line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/\branchids[1,12].csv};
+
+%\node at (axis cs:25000, 0.288) (36) [scale = 1.0] {(1)};
+%\node at (axis cs:38000, 0.263) (36) [scale = 1.0] {(2)};
+%\node at (axis cs:25000, 0.31) (8) [scale = 1.0] {(10)};
+%\node at (axis cs:67000, 0.352) (116) [scale = 1.0] {(12)};
+%\node at (axis cs:18000, 0.34) (116) [scale = 1.0] {(3)};
+%\node at (axis cs:65000, 0.327) (14) [scale = 1.0] {(4)};
+%\node at (axis cs:54000, 0.38) (18) [scale = 1.0] {(7)};
+%\node at (axis cs:75000, 0.305) (90) [scale = 1.0] {(5)};
+%\node at (axis cs:65000, 0.25) (284) [scale = 1.0] {(8)};
+%\node at (axis cs:84000, 0.34) (737) [scale = 1.0] {(9)};
+%\node at (axis cs:90000, 0.295) (90) [scale = 1.0] {(11)};
+%\node at (axis cs:90000, 0.235) (284) [scale = 1.0] {(6)};
+\end{axis}
+
+\begin{axis}[xshift=140, yshift=-210, xmin=0, xmax=10^5, x label style={at={(0.5,-0.07)}}, xlabel={$\textrm{Ra}$}, y label style={at={(-0.15,0.45)}, rotate=-90,anchor=south},ylabel={$\|\mathbf{B}\|^2_2$},  every x tick scale label/.style={at={(xticklabel cs:1)},anchor=south west, yshift=-0.11em},xtick scale label code/.code={\pgfmathparse{int(#1)}$\times 10^{\pgfmathresult}$}, legend style={at={(1.1,1)},anchor=north west}, ytick={0,1,2,3,4,4.5}]
+\addplot[red, dashed,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_B/\branchids[1,1].csv};
+\addplot[violet,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_B/\branchids[1,2].csv};
+\addplot[MyGreen, dashed,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_B/\branchids[1,3].csv};
+\addplot[teal,line width=0.6] table [col sep=comma, smooth,mark=none,forget plot] {data/diagram_B/\branchids[1,4].csv};
+\addplot[violet, dashed,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_B/\branchids[1,5].csv};
+%\addplot[MyGreen,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_B/18.csv};
+\addplot[red,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_B/\branchids[1,6].csv};
+\addplot[blue,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_B/\branchids[1,7].csv};
+\addplot[brown,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_B/\branchids[1,8].csv};
+\addplot[blue, dashed,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_B/\branchids[1,9].csv};
+\addplot[orange, dashed, line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_B/\branchids[1,10].csv};
+\addplot[orange, line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_B/\branchids[1,11].csv};
+\addplot[MyGreen, line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_B/\branchids[1,12].csv};
+
+%\node at (axis cs:12000, 2.55) (36) [scale = 1.0] {(1)};
+%\node at (axis cs:22000, 2.0) (8) [scale = 1.0] {(10)};
+%\node at (axis cs:14000, 1.5) (0) [scale = 1.0] {(2)};
+%\node at (axis cs:18000, 1.16) (116) [scale = 1.0] {(3)};
+%\node at (axis cs:95000, 2.35) (14) [scale = 1.0] {(5)};
+%\node at (axis cs:95000, 2.75) (14) [scale = 1.0] {(4)};
+%\node at (axis cs:50000, 1.55) (18) [scale = 1.0] {(6)};
+%\node at (axis cs:93000, 4.3) (400) [scale = 1.0] {(11)};
+%\node at (axis cs:70000, 3.1) (284) [scale = 1.0] {(8)};
+%\node at (axis cs:53350, 2.839) (284A) {};
+%\draw [->] (284) -- (284A.center);
+%\node at (axis cs:90000, 1.5) (737) [scale = 1.0] {(9)};
+%\node at (axis cs:63000, 1.75) (18) [scale = 1.0] {(7)};
+%\node at (axis cs:60000, 2.5) (18) [scale = 1.0] {(12)};
+\addlegendentry{(1)};
+\addlegendentry{(2)};
+\addlegendentry{(3)};
+\addlegendentry{(4)};
+\addlegendentry{(5)};
+\addlegendentry{(6)};
+\addlegendentry{(7)};
+\addlegendentry{(8)};
+\addlegendentry{(9)};
+\addlegendentry{(10)};
+\addlegendentry{(11)};
+\addlegendentry{(12)};
+\end{axis}
+\end{tikzpicture}
+
+\end{document}
