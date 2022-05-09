@@ -53,7 +53,10 @@ for k in solver_parameters:
 
 def get_known_params(branchid):
     # Parameters
-    knownparams = io.known_parameters(fixed={"Pr":1, "S": 100, "Pm": 10}, branchid=branchid)
+    fixed_params = problem.target_parameter_values()
+    knownparams = io.known_parameters(fixed={"Pr": fixed_params["Pr"],
+                                             "S": fixed_params["S"],
+                                             "Pm": fixed_params["Pm"]}, branchid=branchid)
     knownparams_init = np.array([l[0] for l in knownparams])
     # if branchid == 284:
     #     knownparams = np.array([t for t in knownparams if (t>=36100)])

@@ -305,6 +305,16 @@ class RayleighBenardProblem(BifurcationProblem):
         }
         return values
 
+    def target_parameter_values(self):
+        values = {#"Ra": linspace(10**5, 10**3, 40),
+                  "Ra": [10**5],
+                  "Pr": [1.0],
+                  "S": [1000.0],
+                  "Pm": [10.0],
+        }
+        return values
+        
+
 if __name__ == "__main__":
     if False:
         dc = DeflatedContinuation(problem=RayleighBenardProblem(), teamsize=1, verbose=True, disable_deflation=True)
