@@ -13,7 +13,6 @@ gui:
 	defcon gui -p rayleigh-benard.py
 
 branches=0 166 42
-
 stability:
 	python3 save_functional.py --branchids $(branches)
 	python3 compute_stability_.py --branchids $(branches)
@@ -29,6 +28,17 @@ create_latex:
 	cp diagram_B/* Tex_RB/data/diagram_B/
 	cp StabilityFigures/* Tex_RB/data/StabilityFigures/
 	cd Tex_RB; for branchid in $(branches); do cp diagram_Fabian.tex diagram_$$branchid.tex; sed -i '' "s/branchid{}/branchid{$$branchid}/" diagram_$$branchid.tex; pdflatex -shell-escape diagram_$$branchid; done; cd ..
+
+branches=34 34 34 34 34 34 34 34 34 34 34 34
+fig3:
+#	cp diagram_u/* Tex_RB/data/diagram_u/
+#	cp diagram_T/* Tex_RB/data/diagram_T/
+#	cp diagram_B/* Tex_RB/data/diagram_B/
+#	cp StabilityFigures/* Tex_RB/data/StabilityFigures/
+	cd Tex_RB; sed -i '' "s/XXXXX/$(branches)/" bifurcation_diagram.tex; pdflatex -shell-escape bifurcation_diagram; cp bifurcation_diagram_XXXXX.tex bifurcation_diagram.tex; cd ..
+
+testt:
+	sed -i '' "s/$(branches)/XXXXX" bifurcation_diagram.tex
 
 recompile_latex:
 	cd Tex_RB; for branchid in $(branches); do pdflatex -shell-escape diagram_$$branchid; done; cd ..
