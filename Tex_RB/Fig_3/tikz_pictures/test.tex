@@ -1,0 +1,10 @@
+\documentclass{standalone}
+\usepackage{readarray}
+\def\branchidss{%
+36 8
+}
+\readarray\branchidss\branchids[2,1]
+
+\begin{document}
+value at (2,1) = \branchids[1,1] %access a specific field
+\end{document}
