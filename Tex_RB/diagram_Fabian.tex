@@ -124,6 +124,7 @@
 \pgfplotsset{compat=1.15}
 \tikzexternalize[optimize=false,prefix=fig/] % or false
 
+
 %%% MIKTEX options
 \tikzset{external/system call= {lualatex
                            -enable-write18
@@ -135,11 +136,12 @@
 \begin{document}
 \tikzset{>=latex}
 
-%% 34
-\tikzsetnextfilename{test_figure}
+%%
+\def\branchid{}
+\tikzsetnextfilename{figure_branch_\branchid}
 \begin{tikzpicture}
 \begin{axis}[xmin=2.0*10^4, xmax=10^5, ymin=0, ymax=1200, enlargelimits=false, x label style={at={(0.5,-0.07)}}, xlabel={$\textrm{Ra}$},y label style={at={(-0.2,0.4)},rotate=-90,anchor=south},ylabel={$\|\mathbf{u}\|_2^2$}, every x tick scale label/.style={at={(xticklabel cs:1)},anchor=south west, yshift=-0.11em},xtick scale label code/.code={\pgfmathparse{int(#1)}$\times 10^{\pgfmathresult}$}]
-\addplot[blue,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/34.csv};
+\addplot[blue,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_u/\branchid.csv};
 
 \node at (axis cs:3.3*10^4,400) (A1) {};
 \node at (axis cs:23400,4.80e-1) (B1) {};
@@ -160,17 +162,17 @@
     {\includegraphics[width=.1\textwidth]{data/Figure_paper/34/u_100000.png}};
 \end{axis}
 
-\begin{axis}[yshift=-40mm, yscale=0.45, xmin=2*10^4, xmax=10^5, ymin=-50, ymax=200, ytick distance=50, enlargelimits=false, x label style={at={(0.5,-0.3)}}, xlabel={$\textrm{Ra}$},y label style={at={(-0.2,0.8)},rotate=-90,anchor=south},ylabel={$\mathcal{R}(\lambda)$}, every x tick scale label/.style={at={(xticklabel cs:1)},anchor=south west, yshift=-0.86em},xtick scale label code/.code={\pgfmathparse{int(#1)}$\times 10^{\pgfmathresult}$}, ]
+\begin{axis}[yshift=-105mm, yscale=0.45, xmin=2*10^4, xmax=10^5, ymin=-50, ymax=200, ytick distance=50, enlargelimits=false, x label style={at={(0.5,-0.3)}}, xlabel={$\textrm{Ra}$},y label style={at={(-0.2,0.8)},rotate=-90,anchor=south},ylabel={$\mathcal{R}(\lambda)$}, every x tick scale label/.style={at={(xticklabel cs:1)},anchor=south west, yshift=-0.86em},xtick scale label code/.code={\pgfmathparse{int(#1)}$\times 10^{\pgfmathresult}$}, ]
 
 \pgfplotsset{cycle list set=1}
 \foreach \i in {2,3,4,5,6}{
-\addplot+[only marks, mark size=0.4] table [col sep=comma] {data/StabilityFigures/34_real_\i.csv};
+\addplot+[only marks, mark size=0.4] table [col sep=comma] {data/StabilityFigures/\branchid_real_\i.csv};
 }
 \pgfplotsset{cycle list set=6}
-\addplot+[only marks, mark size=0.4] table [col sep=comma] {data/StabilityFigures/34_real_8.csv};
+\addplot+[only marks, mark size=0.4] table [col sep=comma] {data/StabilityFigures/\branchid_real_8.csv};
 
 \pgfplotsset{cycle list set=0}
-\addplot+[only marks, mark size=0.4] table [col sep=comma] {data/StabilityFigures/34_real_1.csv};
+\addplot+[only marks, mark size=0.4] table [col sep=comma] {data/StabilityFigures/\branchid_real_1.csv};
 
 \draw[black,line width=0.6] 
   (axis cs:\pgfkeysvalueof{/pgfplots/xmin},0) -- 
@@ -179,7 +181,7 @@
 
 %%
 \begin{axis}[xshift=95mm, xmin=2*10^4, xmax=10^5, ymin=0.3, ymax=0.34, enlargelimits=false, x label style={at={(0.5,-0.07)}}, xlabel={$\textrm{Ra}$},y label style={at={(-0.2,0.4)},rotate=-90,anchor=south},ylabel={$\|T\|_2^2$}, every x tick scale label/.style={at={(xticklabel cs:1)},anchor=south west, yshift=-0.11em},xtick scale label code/.code={\pgfmathparse{int(#1)}$\times 10^{\pgfmathresult}$}]
-\addplot[blue,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/34.csv};
+\addplot[blue,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_T/\branchid.csv};
     
 \node at (axis cs:3*10^4,0.315) (A1) {};
 \node at (axis cs:23400,3.333033177180729223e-01) (B1) {};
@@ -201,17 +203,41 @@
     
 \end{axis}
 
-\begin{axis}[xshift=95mm, yshift=-40mm, yscale=0.45, xmin=2*10^4, xmax=10^5, ymin=0, ymax=150, enlargelimits=false, x label style={at={(0.5,-0.3)}}, xlabel={$\textrm{Ra}$},y label style={at={(-0.2,0.8)},rotate=-90,anchor=south},ylabel={$\mathcal{I}(\lambda)$}, every x tick scale label/.style={at={(xticklabel cs:1)},anchor=south west, yshift=-0.86em},xtick scale label code/.code={\pgfmathparse{int(#1)}$\times 10^{\pgfmathresult}$}, ]
+\begin{axis}[xshift=95mm, yshift=-105mm, yscale=0.45, xmin=2*10^4, xmax=10^5, ymin=0, ymax=150, enlargelimits=false, x label style={at={(0.5,-0.3)}}, xlabel={$\textrm{Ra}$},y label style={at={(-0.2,0.8)},rotate=-90,anchor=south},ylabel={$\mathcal{I}(\lambda)$}, every x tick scale label/.style={at={(xticklabel cs:1)},anchor=south west, yshift=-0.86em},xtick scale label code/.code={\pgfmathparse{int(#1)}$\times 10^{\pgfmathresult}$}, ]
 
 \pgfplotsset{cycle list set=1}
 \foreach \i in {2,3,4,5,6}{
-\addplot+[only marks, mark size=0.4] table [col sep=comma] {data/StabilityFigures/34_imag_\i.csv};
+\addplot+[only marks, mark size=0.4] table [col sep=comma] {data/StabilityFigures/\branchid_imag_\i.csv};
 }
 
 \pgfplotsset{cycle list set=0}
-\addplot+[only marks, mark size=0.4] table [col sep=comma] {data/StabilityFigures/34_imag_1.csv};
+\addplot+[only marks, mark size=0.4] table [col sep=comma] {data/StabilityFigures/\branchid_imag_1.csv};
 
 \end{axis}
+
+\begin{axis}[xshift=50mm, yshift=-70mm, xmin=2*10^4, xmax=10^5, enlargelimits=false, x label style={at={(0.5,-0.07)}}, xlabel={$\textrm{Ra}$},y label style={at={(-0.2,0.4)},rotate=-90,anchor=south},ylabel={$\|\mathbf{B}\|_2^2$}, every x tick scale label/.style={at={(xticklabel cs:1)},anchor=south west, yshift=-0.11em},xtick scale label code/.code={\pgfmathparse{int(#1)}$\times 10^{\pgfmathresult}$}]
+\addplot[blue,line width=0.6] table [col sep=comma, smooth,mark=none] {data/diagram_B/\branchid.csv};
+    
+\node at (axis cs:3*10^4,0.315) (A1) {};
+\node at (axis cs:23400,3.333033177180729223e-01) (B1) {};
+\draw [->] (A1.center) -- (B1.center);
+\node[inner sep=0pt] (test) at (axis cs:3*10^4,0.315)
+    {\includegraphics[width=.1\textwidth]{data/Figure_paper/34/T_23400.png}};
+
+\node at (axis cs:5.5*10^4,0.327) (A1) {};
+\node at (axis cs:63850,3.147133966794487536e-01) (B1) {};
+\draw [->] (A1.center) -- (B1.center);
+\node[inner sep=0pt] (test) at (axis cs:5.5*10^4,0.327)
+    {\includegraphics[width=.1\textwidth]{data/Figure_paper/34/T_63850.png}};
+
+\node at (axis cs:8.5*10^4,0.32) (A1) {};
+\node at (axis cs:10^5,3.090847496538097761e-01) (B1) {};
+\draw [->] (A1.center) -- (B1.center);
+\node[inner sep=0pt] (test) at (axis cs:8.5*10^4,0.32)
+    {\includegraphics[width=.1\textwidth]{data/Figure_paper/34/T_100000.png}};
+    
+\end{axis}
+
 \end{tikzpicture}
 
 \end{document}
