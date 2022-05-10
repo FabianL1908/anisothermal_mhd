@@ -28,18 +28,34 @@ RB = __import__("rayleigh-benard")
 #branchids = [34,54,63,64,89]
 
 parser = argparse.ArgumentParser(add_help=False)
-parser.add_argument("--branchids", nargs='+', type=int, default=[1])
+parser.add_argument("--branchids", nargs='+', type=int, default=[-1])
 args, _ = parser.parse_known_args()
 branchids = args.branchids
+
 #branchids = [0, 38, 2, 42, 166, 161]
 
 comm = COMM_WORLD
 
-## Construct mono-3d problem
+# Construct mono-3d problem
 problem = RB.RayleighBenardProblem()
 mesh = problem.mesh(comm=comm)
 Z = problem.function_space(mesh)
 functionals = problem.functionals()
+
+
+def get_branches():
+    branches = []
+    with open('branches.csv', newline='') as csvfile:
+        data = csv.reader(csvfile, delimiter=',')
+        for row in data:
+            int_row = [int(r) for r in row]
+            branches.append(int_row)
+    return branches
+
+
+if branchids == [-1]:
+    branchids = get_branches()
+    branchids = [item for el in branchids for item in el]
 
 # Set-up io function
 io = problem.io("output")
@@ -66,7 +82,8 @@ for branchid in branchids:
     NB = np.array([])
     for param in knownparams:
         print(param)
-        print("Computing functional for parameters %s, branchid = %d" % (str(param[0]), branchid), flush=True)
+        print("Computing functional for parameters %s, branchid = %d" %
+              (str(param[0]), branchid), flush=True)
         solution = io.fetch_solutions(param, [branchid])[0]
         
         funcs = []
@@ -88,19 +105,23 @@ for branchid in branchids:
     np.savetxt("diagram_T/%d.csv"%branchid, np.hstack((knownparams_Ra, NT)), delimiter=",")
     np.savetxt("diagram_B/%d.csv"%branchid, np.hstack((knownparams_Ra, NB)), delimiter=",")
 
-
-
+import itertools
+colors = itertools.cycle(('b', 'g', 'r', 'c', 'm', 'y', 'k'))
 if True:
     for func_idx, dgrm_type in enumerate(["u", "T", "B"]):
-        for branchid in branchids:
-            with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r') as f:
-                data = list(csv.reader(f, delimiter=","))
-            data = np.array(data)
-            data = data.astype(np.float32)
-            data = data.T
-            plt.plot(data[0], data[1])
+        branchids_list = get_branches()
+        for branchid_l in branchids_list:
+            color = next(colors)
+            for branchid in branchid_l:
+                with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r') as f:
+                    data = list(csv.reader(f, delimiter=","))
+                data = np.array(data)
+                data = data.astype(np.float32)
+                data = data.T
+                plt.plot(data[0], data[1], color=color)
         plt.xlabel(r"$\mathrm{Ra}$")
         plt.ylabel(functionals[func_idx][2])
+        plt.ylim(bottom=0)
         plt.savefig(f'diagram_{dgrm_type}.png', dpi=400)
     
 #shutil.make_archive("/home/boulle/Documents/diagram_data", 'zip', "diagram_data")

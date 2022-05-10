@@ -20,14 +20,14 @@ from petsc4py import PETSc
 RB = __import__("linear_eigenvalue")
 
 parser = argparse.ArgumentParser(add_help=False)
-parser.add_argument("--branchids", nargs='+', type=int, default=[1])
+parser.add_argument("--branchids", nargs='+', type=int, default=[-1])
 args, _ = parser.parse_known_args()
 branchids = args.branchids
 
-targetparams = np.linspace(0,10**5,401)
+targetparams = np.linspace(0, 10**5, 401)
 minp = 48500
 maxp = 55000
-targetparams = np.array([t for t in targetparams if (t>=minp and t<=maxp)])
+targetparams = np.array([t for t in targetparams if (t >= minp and t <= maxp)])
 
 path = "CSV/%d"
 
@@ -37,6 +37,22 @@ comm = COMM_WORLD
 problem = RB.EVRayleighBenardProblem()
 mesh = problem.mesh(comm=comm)
 Z = problem.function_space(mesh)
+
+
+def get_branches():
+    branches = []
+    with open('branches.csv', newline='') as csvfile:
+        data = csv.reader(csvfile, delimiter=',')
+        for row in data:
+            int_row = [int(r) for r in row]
+            branches.append(int_row)
+    return branches
+
+
+if branchids == [-1]:
+    branchids = get_branches()
+    branchids = [item for el in branchids for item in el]
+
 
 # Set-up io function
 io = problem.io("output")
@@ -68,26 +84,30 @@ def get_known_params(branchid):
 
 def stab_computation(branchid, param):
 #    for param in [knownparams[0]]:
-    print("Computing stability for parameters %s, branchid = %d" % (str(param[0]), branchid),flush=True)
-
-    consts = param
-    #try:
-    solution = io.fetch_solutions(consts, [branchid])[0]
-    d = problem.compute_stability(consts, branchid, solution)
-    evals = list(map(complex, d["eigenvalues"]))
-    RpointsMu = np.array([l.real for l in evals])
-    RpointsMu = RpointsMu.reshape(len(RpointsMu),1)
-    IpointsMu = np.array([l.imag for l in evals])
-    IpointsMu = IpointsMu.reshape(len(IpointsMu),1)
-    x = np.hstack((RpointsMu,IpointsMu))
-
-    # Sort x by largest real part
-    x = np.flipud(x[np.lexsort(np.fliplr(x).T)])
-
-    # Save the eigenvalues
     if not os.path.isdir(path%(branchid)):
-        os.makedirs(path%(branchid))
-    np.savetxt(path%(branchid)+"/%.f.csv"%param[0], x, delimiter=",")
+        print(f"Stability for branchid {branchid} was already computed")
+    else:
+        print("Computing stability for parameters %s, branchid = %d" % (str(param[0]), branchid),flush=True)
+
+        consts = param
+        #try:
+
+        solution = io.fetch_solutions(consts, [branchid])[0]
+        d = problem.compute_stability(consts, branchid, solution)
+        evals = list(map(complex, d["eigenvalues"]))
+        RpointsMu = np.array([l.real for l in evals])
+        RpointsMu = RpointsMu.reshape(len(RpointsMu),1)
+        IpointsMu = np.array([l.imag for l in evals])
+        IpointsMu = IpointsMu.reshape(len(IpointsMu),1)
+        x = np.hstack((RpointsMu,IpointsMu))
+
+        # Sort x by largest real part
+        x = np.flipud(x[np.lexsort(np.fliplr(x).T)])
+
+        # Save the eigenvalues
+        if not os.path.isdir(path%(branchid)):
+            os.makedirs(path%(branchid))
+        np.savetxt(path%(branchid)+"/%.f.csv"%param[0], x, delimiter=",")
 
 def create_stability_figures(branchid):
     params = get_known_params(branchid)
