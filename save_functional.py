@@ -19,6 +19,11 @@ import shutil
 
 import csv
 import matplotlib.pyplot as plt
+from matplotlib import rc
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 14})
+rc('text', usetex=True)
+
+from utils import get_branches, get_colors
 
 RB = __import__("rayleigh-benard")
 
@@ -41,16 +46,6 @@ problem = RB.RayleighBenardProblem()
 mesh = problem.mesh(comm=comm)
 Z = problem.function_space(mesh)
 functionals = problem.functionals()
-
-
-def get_branches():
-    branches = []
-    with open('branches.csv', newline='') as csvfile:
-        data = csv.reader(csvfile, delimiter=',')
-        for row in data:
-            int_row = [int(r) for r in row]
-            branches.append(int_row)
-    return branches
 
 
 if branchids == [-1]:
@@ -105,9 +100,8 @@ for branchid in branchids:
     np.savetxt("diagram_T/%d.csv"%branchid, np.hstack((knownparams_Ra, NT)), delimiter=",")
     np.savetxt("diagram_B/%d.csv"%branchid, np.hstack((knownparams_Ra, NB)), delimiter=",")
 
-import itertools
-colors = itertools.cycle(('b', 'g', 'r', 'c', 'm', 'y', 'k'))
-if True:
+def plot_diagram():
+    colors = get_colors()
     for func_idx, dgrm_type in enumerate(["u", "T", "B"]):
         branchids_list = get_branches()
         for branchid_l in branchids_list:
@@ -123,7 +117,8 @@ if True:
         plt.ylabel(functionals[func_idx][2])
         plt.ylim(bottom=0)
         plt.savefig(f'diagram_{dgrm_type}.png', dpi=400)
-    
+
+plot_diagram()
 #shutil.make_archive("/home/boulle/Documents/diagram_data", 'zip', "diagram_data")
 
 
