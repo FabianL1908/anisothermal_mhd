@@ -7,6 +7,10 @@ import csv
 import argparse
 from functools import partial
 from multiprocessing import Pool
+import matplotlib.pyplot as plt
+from matplotlib import rc
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 14})
+rc('text', usetex=True)
 
 from firedrake import *
 from firedrake.mg.utils import get_level
@@ -15,6 +19,8 @@ from defcon import *
 from defcon import backend, StabilityTask
 from defcon.cli.common import fetch_bifurcation_problem
 from petsc4py import PETSc
+
+from utils import get_branches, get_colors
 
 #RB = __import__("rayleigh-benard")
 RB = __import__("linear_eigenvalue")
@@ -37,17 +43,6 @@ comm = COMM_WORLD
 problem = RB.EVRayleighBenardProblem()
 mesh = problem.mesh(comm=comm)
 Z = problem.function_space(mesh)
-
-
-def get_branches():
-    branches = []
-    with open('branches.csv', newline='') as csvfile:
-        data = csv.reader(csvfile, delimiter=',')
-        for row in data:
-            int_row = [int(r) for r in row]
-            branches.append(int_row)
-    return branches
-
 
 if branchids == [-1]:
     branchids = get_branches()
@@ -84,8 +79,8 @@ def get_known_params(branchid):
 
 def stab_computation(branchid, param):
 #    for param in [knownparams[0]]:
-    if not os.path.isdir(path%(branchid)):
-        print(f"Stability for branchid {branchid} was already computed")
+    if os.path.exists(path%(branchid)+f"/{int(param[0])}.csv"):
+        print(f"Stability for branchid {branchid} and param {param} was already computed")
     else:
         print("Computing stability for parameters %s, branchid = %d" % (str(param[0]), branchid),flush=True)
 
@@ -117,18 +112,72 @@ def create_stability_figures(branchid):
         os.makedirs(path_stab)
 
     my_data = {}
-    for param in params:
-        with open(f'CSV/{branchid}/{int(param)}.csv', 'r') as f:
-                data = list(csv.reader(f, delimiter=","))
-        my_data[param] = np.array(data).astype(np.float32)
 
-    for i in range(0, 10):
-        reals = np.array([my_data[param][i][0] for param in params])
-        imags = np.array([my_data[param][i][1] for param in params])
-        params = np.array(params)
-         
-        np.savetxt(f"{path_stab}/{branchid}_real_{i}.csv", np.vstack((params, reals)).T, delimiter=",")            
-        np.savetxt(f"{path_stab}/{branchid}_imag_{i}.csv", np.vstack((params, imags)).T, delimiter=",")            
+    for param in params:
+            with open(f'CSV/{branchid}/{int(param)}.csv', 'r') as f:
+                    data = list(csv.reader(f, delimiter=","))
+            my_data[param] = np.array(data).astype(np.float32)
+
+    try:
+        for i in range(0, 10):
+            reals = np.array([my_data[param][i][0] for param in params])
+            imags = np.array([my_data[param][i][1] for param in params])
+            params = np.array(params)
+
+            np.savetxt(f"{path_stab}/{branchid}_real_{i}.csv", np.vstack((params, reals)).T, delimiter=",")            
+            np.savetxt(f"{path_stab}/{branchid}_imag_{i}.csv", np.vstack((params, imags)).T, delimiter=",")
+    except IndexError:
+            print("Less than 10 eigenvalues found")
+
+def get_data(path):
+    with open(path, 'r') as f:
+        data = list(csv.reader(f, delimiter=","))
+    data = np.array(data)
+    data = data.astype(np.float32)
+    data = data.T
+    return data
+
+def plot_stability_figures():
+    branchids_list = get_branches()
+    for branchid_l in branchids_list:
+        fig = plt.figure()
+        grid = plt.GridSpec(5, 4, hspace=2, wspace=2)
+        fig_u = fig.add_subplot(grid[:2, :2])
+        fig_T = fig.add_subplot(grid[:2, 2:])
+        fig_B = fig.add_subplot(grid[2:4, 1:3])
+        fig_stab_real = fig.add_subplot(grid[4:, :2])
+        fig_stab_imag = fig.add_subplot(grid[4:, 2:])
+        colors = get_colors()
+        color = next(colors)
+        for branchid in branchid_l:
+            data = get_data(f'diagram_u/{branchid}.csv')
+            fig_u.plot(data[0], data[1], color=color)
+            data = get_data(f'diagram_T/{branchid}.csv')
+            fig_T.plot(data[0], data[1], color=color)
+            data = get_data(f'diagram_B/{branchid}.csv')
+            fig_B.plot(data[0], data[1], color=color)
+            colors2 = get_colors()
+            for i in range(0, 10):
+                color2 = next(colors2)
+                try:
+                    data = get_data(f'StabilityFigures/{branchid}_real_{i}.csv')
+                    fig_stab_real.plot(data[0], data[1], color=color2)
+                    data = get_data(f'StabilityFigures/{branchid}_imag_{i}.csv')
+                    fig_stab_imag.plot(data[0], data[1], color=color2)
+                except FileNotFoundError:
+                    print("Less than 10 eigenvalues found")
+        fig_u.set_xlabel(r"$\mathrm{Ra}$")
+        fig_T.set_xlabel(r"$\mathrm{Ra}$")
+        fig_B.set_xlabel(r"$\mathrm{Ra}$")
+        fig_stab_real.set_xlabel(r"$\mathrm{Ra}$")
+        fig_stab_imag.set_xlabel(r"$\mathrm{Ra}$")
+        fig_u.set_ylabel(problem.functionals()[0][2])
+        fig_T.set_ylabel(problem.functionals()[1][2])
+        fig_B.set_ylabel(problem.functionals()[2][2])
+        fig_stab_real.set_ylabel(r"$\mathcal{R}(\lambda)$")
+        fig_stab_imag.set_ylabel(r"$\mathcal{I}(\lambda)$")
+        plt.savefig(f'diagram_branch_{branchid_l[0]}.png', dpi=400)
+    
     
 # Branch
 #branchids = [44]
@@ -139,8 +188,10 @@ def create_stability_figures(branchid):
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-    pool = Pool(4)
+    pool = Pool(40)
+    print(branchids)
     for branchid in branchids:
         knownparams = get_known_params(branchid)
         pool.map(partial(stab_computation, branchid), knownparams)
         create_stability_figures(branchid)
+    plot_stability_figures()
