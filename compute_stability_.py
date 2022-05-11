@@ -74,7 +74,7 @@ def get_known_params(branchid):
 #        params = knownparams_init[np.isclose(targetparams[:,None],knownparams_init).any(0)]
     params = knownparams_init
     knownparams = [p for p in knownparams if p[0] in params]
-    print(knownparams)
+    #print(knownparams)
     return knownparams    
 
 def stab_computation(branchid, param):
@@ -104,6 +104,22 @@ def stab_computation(branchid, param):
             os.makedirs(path%(branchid))
         np.savetxt(path%(branchid)+"/%.f.csv"%param[0], x, delimiter=",")
 
+def create_pictures():
+    for branchid in branchids:
+        params = get_known_params(branchid)
+        # only save 10 plots
+        len_params = len(params)
+        params_idxs = np.linspace(0, len(params)-1, 10)
+        params_idxs = [int(np.floor(x)) for x in params_idxs]
+        if not os.path.isdir("paraview"):
+            os.makedirs("paraview")
+        for idx in params_idxs:
+            solution = io.fetch_solutions(params[idx], [branchid])[0]
+            if not os.path.isdir(f"paraview/{branchid}"):
+                os.makedirs(f"paraview/{branchid}")
+            pvd = File(f"paraview/{branchid}/{int(params[idx][0])}.pvd")
+            problem.save_pvd(solution, pvd, params)
+        
 def create_stability_figures(branchid):
     params = get_known_params(branchid)
     params = [param[0] for param in params]
@@ -190,8 +206,9 @@ def plot_stability_figures():
 if __name__ == "__main__":
     pool = Pool(40)
     print(branchids)
-    for branchid in branchids:
-        knownparams = get_known_params(branchid)
-        pool.map(partial(stab_computation, branchid), knownparams)
-        create_stability_figures(branchid)
-    plot_stability_figures()
+#    for branchid in branchids:
+#        knownparams = get_known_params(branchid)
+#        pool.map(partial(stab_computation, branchid), knownparams)
+#        create_stability_figures(branchid)
+#    plot_stability_figures()
+    create_pictures()
