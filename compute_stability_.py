@@ -119,6 +119,11 @@ def create_pictures():
                 os.makedirs(f"paraview/{branchid}")
             pvd = File(f"paraview/{branchid}/{int(params[idx][0])}.pvd")
             problem.save_pvd(solution, pvd, params)
+
+    print("The the following command on your local machine:")
+    download_path = "laakmann@wolverine:" + os.getcwd()
+    print(f"scp -r {download_path}/paraview .; scp {download_path}/create_png.py .; /Applications/ParaView-5.10.1.app/Contents/bin/pvpython create_png.py; rm -rf paraview/*/*.pvd; rm -rf paraview/*/*.vtu; scp -r paraview/* {download_path}/paraview; rm -rf paraview/*")
+    input("Hit Enter when you are done:")
         
 def create_stability_figures(branchid):
     params = get_known_params(branchid)
@@ -210,5 +215,6 @@ if __name__ == "__main__":
 #        knownparams = get_known_params(branchid)
 #        pool.map(partial(stab_computation, branchid), knownparams)
 #        create_stability_figures(branchid)
-#    plot_stability_figures()
-    create_pictures()
+#    create_pictures()
+    plot_stability_figures()
+x
