@@ -11,6 +11,10 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 14})
 rc('text', usetex=True)
+from matplotlib.offsetbox import *
+import matplotlib.image as mpimg
+from PIL import Image
+
 
 from firedrake import *
 from firedrake.mg.utils import get_level
@@ -46,7 +50,7 @@ Z = problem.function_space(mesh)
 
 if branchids == [-1]:
     branchids = get_branches()
-    branchids = [item for el in branchids for item in el]
+    branchids = [it for el in branchids for item in branchids[el] for it in item]
 
 
 # Set-up io function

@@ -50,7 +50,7 @@ functionals = problem.functionals()
 
 if branchids == [-1]:
     branchids = get_branches()
-    branchids = [item for el in branchids for item in el]
+    branchids = [it for el in branchids for item in branchids[el] for it in item]
 
 # Set-up io function
 io = problem.io("output")
@@ -102,23 +102,56 @@ for branchid in branchids:
 
 def plot_diagram():
     colors = get_colors()
-    for func_idx, dgrm_type in enumerate(["u", "T", "B"]):
-        branchids_list = get_branches()
-        for branchid_l in branchids_list:
+#    fig = plt.figure()
+#    grid = plt.GridSpec(8, 8, hspace=2, wspace=2)
+#    fig_u = fig.add_subplot(grid[1:4, 1:4])
+#    fig_T = fig.add_subplot(grid[1:4, 4:])
+#    fig_B = fig.add_subplot(grid[4:, 4:])
+#    figures = [fig_u, fig_T, fig_B]
+    for idx, dgrm_type in enumerate(["u", "T", "B"]):
+        branchid_dict = get_branches()
+        for b_key in branchid_dict:
             color = next(colors)
-            for branchid in branchid_l:
-                with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r') as f:
-                    data = list(csv.reader(f, delimiter=","))
-                data = np.array(data)
-                data = data.astype(np.float32)
-                data = data.T
-                plt.plot(data[0], data[1], color=color)
-        plt.xlabel(r"$\mathrm{Ra}$")
-        plt.ylabel(functionals[func_idx][2])
-        plt.ylim(bottom=0)
-        plt.savefig(f'diagram_{dgrm_type}.png', dpi=400)
+            for outer_list in branchid_dict[b_key]:
+                for branchid in outer_list:
+                    with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r') as f:
+                        data = list(csv.reader(f, delimiter=","))
+                    data = np.array(data)
+                    data = data.astype(np.float32)
+                    data = data.T
+                    plt.plot(data[0], data[1], color=color)
+            plt.xlabel(r"$\mathrm{Ra}$")
+            plt.ylabel(functionals[idx][2], rotation=0, labelpad=15)
+            plt.ylim(bottom=0)
+            plt.tight_layout()
+            plt.savefig(f'diagram_{dgrm_type}.png', dpi=400)
+
+    colors = get_colors()
+    fig = plt.figure()
+    grid = plt.GridSpec(4, 4, hspace=2, wspace=2)
+    fig_u = fig.add_subplot(grid[:2, :2])
+    fig_T = fig.add_subplot(grid[:2, 2:])
+    fig_B = fig.add_subplot(grid[2:4, 1:3])
+    figures = [fig_u, fig_T, fig_B]
+    for idx, dgrm_type in enumerate(["u", "T", "B"]):
+        branchid_dict = get_branches()
+        for b_key in branchid_dict:
+            color = next(colors)
+            for outer_list in branchid_dict[b_key]:
+                for branchid in outer_list:
+                    with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r') as f:
+                        data = list(csv.reader(f, delimiter=","))
+                    data = np.array(data)
+                    data = data.astype(np.float32)
+                    data = data.T
+                    figures[idx].plot(data[0], data[1], color=color)
+            figures[idx].set_xlabel(r"$\mathrm{Ra}$")
+            figures[idx].set_ylabel(functionals[idx][2], rotation=0, labelpad=15)
+            figures[idx].set_ylim(bottom=0)
+#    plt.tight_layout()
+        figures[idx].set_xticks(np.linspace(), np.max(data[0]), 5))
+    plt.savefig(f'diagram_uTB.png', dpi=400, bbox_inches='tight')
+            
 
 plot_diagram()
 #shutil.make_archive("/home/boulle/Documents/diagram_data", 'zip', "diagram_data")
-
-
