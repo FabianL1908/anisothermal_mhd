@@ -163,8 +163,9 @@ def get_data(path):
     return data
 
 def plot_stability_figures():
-    branchids_list = get_branches()
-    for branchid_l in branchids_list:
+    branchids_dict = get_branches()
+    import ipdb; ipdb.set_trace()
+    for b_key in branchids_dict:
         fig = plt.figure()
         grid = plt.GridSpec(5, 4, hspace=2, wspace=2)
         fig_u = fig.add_subplot(grid[:2, :2])
@@ -173,24 +174,25 @@ def plot_stability_figures():
         fig_stab_real = fig.add_subplot(grid[4:, :2])
         fig_stab_imag = fig.add_subplot(grid[4:, 2:])
         colors = get_colors()
-        color = next(colors)
-        for branchid in branchid_l:
-            data = get_data(f'diagram_u/{branchid}.csv')
-            fig_u.plot(data[0], data[1], color=color)
-            data = get_data(f'diagram_T/{branchid}.csv')
-            fig_T.plot(data[0], data[1], color=color)
-            data = get_data(f'diagram_B/{branchid}.csv')
-            fig_B.plot(data[0], data[1], color=color)
-            colors2 = get_colors()
-            for i in range(0, 10):
-                color2 = next(colors2)
-                try:
-                    data = get_data(f'StabilityFigures/{branchid}_real_{i}.csv')
-                    fig_stab_real.plot(data[0], data[1], color=color2)
-                    data = get_data(f'StabilityFigures/{branchid}_imag_{i}.csv')
-                    fig_stab_imag.plot(data[0], data[1], color=color2)
-                except FileNotFoundError:
-                    print("Less than 10 eigenvalues found")
+        for outer_list in branchids_dict[b_key]:
+            color = next(colors)
+            for branchid in outer_list:
+                data = get_data(f'diagram_u/{branchid}.csv')
+                fig_u.plot(data[0], data[1], color=color)
+                data = get_data(f'diagram_T/{branchid}.csv')
+                fig_T.plot(data[0], data[1], color=color)
+                data = get_data(f'diagram_B/{branchid}.csv')
+                fig_B.plot(data[0], data[1], color=color)
+                colors2 = get_colors()
+                for i in range(0, 10):
+                    color2 = next(colors2)
+                    try:
+                        data = get_data(f'StabilityFigures/{branchid}_real_{i}.csv')
+                        fig_stab_real.plot(data[0], data[1], color=color2)
+                        data = get_data(f'StabilityFigures/{branchid}_imag_{i}.csv')
+                        fig_stab_imag.plot(data[0], data[1], color=color2)
+                    except FileNotFoundError:
+                        print("Less than 10 eigenvalues found")
         fig_u.set_xlabel(r"$\mathrm{Ra}$")
         fig_T.set_xlabel(r"$\mathrm{Ra}$")
         fig_B.set_xlabel(r"$\mathrm{Ra}$")
@@ -201,7 +203,7 @@ def plot_stability_figures():
         fig_B.set_ylabel(problem.functionals()[2][2])
         fig_stab_real.set_ylabel(r"$\mathcal{R}(\lambda)$")
         fig_stab_imag.set_ylabel(r"$\mathcal{I}(\lambda)$")
-        plt.savefig(f'diagram_branch_{branchid_l[0]}.png', dpi=400)
+        plt.savefig(f'diagram_branch_{b_key}.png', dpi=400)
     
     
 # Branch
@@ -213,7 +215,7 @@ def plot_stability_figures():
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-    pool = Pool(40)
+#    pool = Pool(40)
     print(branchids)
 #    for branchid in branchids:
 #        knownparams = get_known_params(branchid)
@@ -221,4 +223,3 @@ if __name__ == "__main__":
 #        create_stability_figures(branchid)
 #    create_pictures()
     plot_stability_figures()
-x
