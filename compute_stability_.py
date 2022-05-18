@@ -9,8 +9,9 @@ from functools import partial
 from multiprocessing import Pool
 import matplotlib.pyplot as plt
 from matplotlib import rc
-rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 14})
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 10})
 rc('text', usetex=True)
+rc('lines', linewidth=0.7)
 from matplotlib.offsetbox import *
 import matplotlib.image as mpimg
 from PIL import Image
@@ -251,6 +252,8 @@ def plot_stability_figures():
             for ab in ab_list:
                 fig_B.add_artist(ab)
         fig_u.set_xlabel(r"$\mathrm{Ra}$")
+        import matplotlib.ticker as ticker
+        fig_u.set_major_locator(ticker.MultipleLocator(1))
         fig_T.set_xlabel(r"$\mathrm{Ra}$")
         fig_B.set_xlabel(r"$\mathrm{Ra}$")
         fig_stab_real.set_xlabel(r"$\mathrm{Ra}$")
@@ -261,7 +264,7 @@ def plot_stability_figures():
         fig_stab_real.set_ylabel(r"$\mathcal{R}(\lambda)$")
         fig_stab_imag.set_ylabel(r"$\mathcal{I}(\lambda)$")
         
-        plt.savefig(f'diagram_branch_{b_key}.png', dpi=400)
+        plt.savefig(f'diagram_branch_{b_key}.png', dpi=800)
     
     
 # Branch
