@@ -162,9 +162,39 @@ def get_data(path):
     data = data.T
     return data
 
+def add_annotationbox(im_path, x, y):
+    l = len(x)
+
+    zipped_list = list(zip(x,y))
+    sort_key = lambda x: x[0]
+    zipped_list = sorted(zipped_list, key=sort_key)
+    indices = (0, 4, 9)
+    im_list = [im_path[i] for i in indices]
+    xx = [int(im.split("/")[-1].split("_")[0]) for im in im_list]
+#    xy_list = [zipped_list[ind] for i, ind in enumerate(indices) if int(zipped_list[ind][0]) == xx[i]]
+    xy_list = [f for f in zipped_list if f[0] in xx]
+
+    ymin = np.min(y); ymax = np.max(y)
+    ymid = (ymax+ymin)/2
+    ab_list = []
+    for i, xy in enumerate(xy_list):
+        if xy[1] < ymid:
+            xybox = (xy[0], xy[1] + 0.5*(ymid-ymin))
+        else:
+            xybox = (xy[0], xy[1] - 0.5*(ymid-ymin))
+        im = mpimg.imread(im_list[i])
+        imagebox = OffsetImage(im, zoom=0.02)
+        ab = AnnotationBbox(imagebox, xy,
+                            frameon=False,
+                            pad=0,
+                            xybox=xybox,
+                            arrowprops=dict(arrowstyle="->, head_width=0.02, head_length=0.02", linewidth=0.5\
+      ))
+        ab_list.append(ab)
+    return ab_list
+
 def plot_stability_figures():
     branchids_dict = get_branches()
-    import ipdb; ipdb.set_trace()
     for b_key in branchids_dict:
         fig = plt.figure()
         grid = plt.GridSpec(5, 4, hspace=2, wspace=2)
@@ -175,13 +205,21 @@ def plot_stability_figures():
         fig_stab_imag = fig.add_subplot(grid[4:, 2:])
         colors = get_colors()
         for outer_list in branchids_dict[b_key]:
+            xdata = np.array([])
+            yudata = np.array([])
+            yTdata = np.array([])
+            yBdata = np.array([])
             color = next(colors)
             for branchid in outer_list:
                 data = get_data(f'diagram_u/{branchid}.csv')
+                xdata = np.append(xdata, data[0])
+                yudata = np.append(yudata, data[1])
                 fig_u.plot(data[0], data[1], color=color)
                 data = get_data(f'diagram_T/{branchid}.csv')
+                yTdata = np.append(yTdata, data[1])
                 fig_T.plot(data[0], data[1], color=color)
                 data = get_data(f'diagram_B/{branchid}.csv')
+                yBdata = np.append(yBdata, data[1])
                 fig_B.plot(data[0], data[1], color=color)
                 colors2 = get_colors()
                 for i in range(0, 10):
@@ -193,6 +231,25 @@ def plot_stability_figures():
                         fig_stab_imag.plot(data[0], data[1], color=color2)
                     except FileNotFoundError:
                         print("Less than 10 eigenvalues found")
+#            image_files = [os.listdir(f"paraview/{branch}") for outer_list in branchids_dict[b_key] for branch in outer_list]
+            image_files = [os.listdir(f"paraview/{branch}") for branch in outer_list]
+#            image_files = [os.path.join(f"paraview/{branch}", f) for outer_list in branchids_dict[b_key] for branch in outer_list for f in os.listdir(f"paraview/{branch}")]
+            image_files = [os.path.join(f"paraview/{branch}", f) for branch in outer_list for f in os.listdir(f"paraview/{branch}")]
+            image_files = [f for f in image_files if f.endswith(".png")]
+            sort_key = lambda x: int(x.split("/")[-1].split("_")[0])
+            image_files = sorted(image_files, key=sort_key)
+            u_image_files = [f for f in image_files if f.endswith("u.png")]
+            ab_list = add_annotationbox(u_image_files, xdata, yudata)
+            for ab in ab_list:
+                fig_u.add_artist(ab)
+            T_image_files = [f for f in image_files if f.endswith("T.png")]
+            ab_list = add_annotationbox(T_image_files, xdata, yTdata)
+            for ab in ab_list:
+                fig_T.add_artist(ab)
+            B_image_files = [f for f in image_files if f.endswith("B.png")]
+            ab_list = add_annotationbox(B_image_files, xdata, yBdata)
+            for ab in ab_list:
+                fig_B.add_artist(ab)
         fig_u.set_xlabel(r"$\mathrm{Ra}$")
         fig_T.set_xlabel(r"$\mathrm{Ra}$")
         fig_B.set_xlabel(r"$\mathrm{Ra}$")
@@ -203,6 +260,7 @@ def plot_stability_figures():
         fig_B.set_ylabel(problem.functionals()[2][2])
         fig_stab_real.set_ylabel(r"$\mathcal{R}(\lambda)$")
         fig_stab_imag.set_ylabel(r"$\mathcal{I}(\lambda)$")
+        
         plt.savefig(f'diagram_branch_{b_key}.png', dpi=400)
     
     
