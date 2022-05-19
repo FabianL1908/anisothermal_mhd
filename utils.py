@@ -16,3 +16,7 @@ def get_branches():
 
 def get_colors():
     return itertools.cycle(('b', 'g', 'r', 'c', 'm', 'y', 'k'))
+
+def get_linestyles():
+    return itertools.cycle(('-', '-', '-', '-', '-', '-', '-', '--', '--', '--', '--', '--', '--', '--', '-.', '-.', '-.', '-.', '-.', '-.', '-', ':'))
+    

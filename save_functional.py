@@ -23,7 +23,7 @@ from matplotlib import rc
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 14})
 rc('text', usetex=True)
 
-from utils import get_branches, get_colors
+from utils import get_branches, get_colors, get_linestyles
 
 RB = __import__("rayleigh-benard")
 
@@ -102,6 +102,7 @@ for branchid in branchids:
 
 def plot_diagram():
     colors = get_colors()
+    linestyles = get_linestyles()
 #    fig = plt.figure()
 #    grid = plt.GridSpec(8, 8, hspace=2, wspace=2)
 #    fig_u = fig.add_subplot(grid[1:4, 1:4])
@@ -112,6 +113,7 @@ def plot_diagram():
         branchid_dict = get_branches()
         for b_key in branchid_dict:
             color = next(colors)
+            linestyle = next(linestyles)
             for outer_list in branchid_dict[b_key]:
                 full_data = np.array([]).reshape((0,2))
                 for branchid in outer_list:
@@ -123,12 +125,16 @@ def plot_diagram():
                     full_data = np.vstack((full_data, data))
                 full_data = np.sort(full_data, axis=0)
                 full_data = full_data.T
-                plt.plot(full_data[0], full_data[1], color=color)
+                plt.plot(full_data[0], full_data[1], color=color, label=f"{b_key}", linestyle=linestyle)
             plt.xlabel(r"$\mathrm{Ra}$")
             plt.ylabel(functionals[idx][2], rotation=0, labelpad=15)
             plt.ylim(bottom=0)
             plt.xlim(right=10**5)
             plt.tight_layout()
+            handles, labels = plt.gca().get_legend_handles_labels()
+            by_label = dict(zip(labels, handles))
+            plt.legend(by_label.values(), by_label.keys(), bbox_to_anchor=(1, 1))
+#            plt.legend(bbox_to_anchor=(1, 1.0))
             plt.savefig(f'diagram_{dgrm_type}.png', dpi=400)
 
     colors = get_colors()

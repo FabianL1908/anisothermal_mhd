@@ -125,7 +125,7 @@ def create_pictures():
             pvd = File(f"paraview/{branchid}/{int(params[idx][0])}.pvd")
             problem.save_pvd(solution, pvd, params)
 
-    print("The the following command on your local machine:")
+    print("Run the following command on your local machine:")
     download_path = "laakmann@wolverine:" + os.getcwd()
     print(f"scp -r {download_path}/paraview .; scp {download_path}/create_png.py .; /Applications/ParaView-5.10.1.app/Contents/bin/pvpython create_png.py; rm -rf paraview/*/*.pvd; rm -rf paraview/*/*.vtu; scp -r paraview/* {download_path}/paraview; rm -rf paraview/*")
     input("Hit Enter when you are done:")
@@ -170,11 +170,15 @@ def add_annotationbox(im_path, x, y):
     sort_key = lambda x: x[0]
     zipped_list = sorted(zipped_list, key=sort_key)
     indices = (0, 4, 9)
-    im_list = [im_path[i] for i in indices]
+    if len(im_path) <= indices[-1]:
+        im_list = [im_path[i] for i in (0, len(indices)-1)] 
+    else:
+        im_list = [im_path[i] for i in indices]
     xx = [int(im.split("/")[-1].split("_")[0]) for im in im_list]
 #    xy_list = [zipped_list[ind] for i, ind in enumerate(indices) if int(zipped_list[ind][0]) == xx[i]]
     xy_list = [f for f in zipped_list if f[0] in xx]
-
+    xy_list = list(set(xy_list))
+    xy_list = sorted(xy_list, key=sort_key)
     ymin = np.min(y); ymax = np.max(y)
     ymid = (ymax+ymin)/2
     ab_list = []
@@ -232,9 +236,7 @@ def plot_stability_figures():
                         fig_stab_imag.plot(data[0], data[1], color=color2)
                     except FileNotFoundError:
                         print("Less than 10 eigenvalues found")
-#            image_files = [os.listdir(f"paraview/{branch}") for outer_list in branchids_dict[b_key] for branch in outer_list]
             image_files = [os.listdir(f"paraview/{branch}") for branch in outer_list]
-#            image_files = [os.path.join(f"paraview/{branch}", f) for outer_list in branchids_dict[b_key] for branch in outer_list for f in os.listdir(f"paraview/{branch}")]
             image_files = [os.path.join(f"paraview/{branch}", f) for branch in outer_list for f in os.listdir(f"paraview/{branch}")]
             image_files = [f for f in image_files if f.endswith(".png")]
             sort_key = lambda x: int(x.split("/")[-1].split("_")[0])
@@ -252,8 +254,8 @@ def plot_stability_figures():
             for ab in ab_list:
                 fig_B.add_artist(ab)
         fig_u.set_xlabel(r"$\mathrm{Ra}$")
-        import matplotlib.ticker as ticker
-        fig_u.set_major_locator(ticker.MultipleLocator(1))
+#        import matplotlib.ticker as ticker
+#        fig_u.set_major_locator(ticker.MultipleLocator(1))
         fig_T.set_xlabel(r"$\mathrm{Ra}$")
         fig_B.set_xlabel(r"$\mathrm{Ra}$")
         fig_stab_real.set_xlabel(r"$\mathrm{Ra}$")
@@ -264,7 +266,7 @@ def plot_stability_figures():
         fig_stab_real.set_ylabel(r"$\mathcal{R}(\lambda)$")
         fig_stab_imag.set_ylabel(r"$\mathcal{I}(\lambda)$")
         
-        plt.savefig(f'diagram_branch_{b_key}.png', dpi=800)
+        plt.savefig(f'StabilityFigures/diagram_branch_{b_key}.png', dpi=800)
     
     
 # Branch
@@ -277,7 +279,7 @@ def plot_stability_figures():
 #stab_computation(branchids)
 if __name__ == "__main__":
 #    pool = Pool(40)
-    print(branchids)
+#    print(branchids)
 #    for branchid in branchids:
 #        knownparams = get_known_params(branchid)
 #        pool.map(partial(stab_computation, branchid), knownparams)
