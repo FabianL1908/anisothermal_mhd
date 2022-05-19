@@ -113,16 +113,21 @@ def plot_diagram():
         for b_key in branchid_dict:
             color = next(colors)
             for outer_list in branchid_dict[b_key]:
+                full_data = np.array([]).reshape((0,2))
                 for branchid in outer_list:
                     with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r') as f:
                         data = list(csv.reader(f, delimiter=","))
                     data = np.array(data)
                     data = data.astype(np.float32)
-                    data = data.T
-                    plt.plot(data[0], data[1], color=color)
+#                    import ipdb; ipdb.set_trace()
+                    full_data = np.vstack((full_data, data))
+                full_data = np.sort(full_data, axis=0)
+                full_data = full_data.T
+                plt.plot(full_data[0], full_data[1], color=color)
             plt.xlabel(r"$\mathrm{Ra}$")
             plt.ylabel(functionals[idx][2], rotation=0, labelpad=15)
             plt.ylim(bottom=0)
+            plt.xlim(right=10**5)
             plt.tight_layout()
             plt.savefig(f'diagram_{dgrm_type}.png', dpi=400)
 
@@ -144,12 +149,13 @@ def plot_diagram():
                     data = np.array(data)
                     data = data.astype(np.float32)
                     data = data.T
-                    figures[idx].plot(data[0], data[1], color=color)
+                figures[idx].plot(data[0], data[1], color=color)
             figures[idx].set_xlabel(r"$\mathrm{Ra}$")
             figures[idx].set_ylabel(functionals[idx][2], rotation=0, labelpad=15)
             figures[idx].set_ylim(bottom=0)
+            figures[idx].set_xlim(right=10**5)
 #    plt.tight_layout()
-        figures[idx].set_xticks(np.linspace(), np.max(data[0]), 5))
+#        figures[idx].set_xticks(np.linspace(), np.max(data[0]), 5))
     plt.savefig(f'diagram_uTB.png', dpi=400, bbox_inches='tight')
             
 
