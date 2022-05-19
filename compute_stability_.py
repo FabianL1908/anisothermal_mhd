@@ -165,11 +165,11 @@ def get_data(path):
 
 def add_annotationbox(im_path, x, y):
     l = len(x)
-
+#    import ipdb; ipdb.set_trace()
     zipped_list = list(zip(x,y))
     sort_key = lambda x: x[0]
     zipped_list = sorted(zipped_list, key=sort_key)
-    indices = (0, 4, 9)
+    indices = (0, int(len(im_path)/2), -1)
     if len(im_path) <= indices[-1]:
         im_list = [im_path[i] for i in (0, len(indices)-1)] 
     else:
@@ -214,28 +214,49 @@ def plot_stability_figures():
             yudata = np.array([])
             yTdata = np.array([])
             yBdata = np.array([])
+            from collections import defaultdict
+            def def_value():
+                return np.array([])
+            yrealdata = defaultdict(def_value)
+            yimagdata = defaultdict(def_value)
             color = next(colors)
             for branchid in outer_list:
                 data = get_data(f'diagram_u/{branchid}.csv')
                 xdata = np.append(xdata, data[0])
                 yudata = np.append(yudata, data[1])
-                fig_u.plot(data[0], data[1], color=color)
                 data = get_data(f'diagram_T/{branchid}.csv')
                 yTdata = np.append(yTdata, data[1])
-                fig_T.plot(data[0], data[1], color=color)
                 data = get_data(f'diagram_B/{branchid}.csv')
                 yBdata = np.append(yBdata, data[1])
-                fig_B.plot(data[0], data[1], color=color)
-                colors2 = get_colors()
                 for i in range(0, 10):
-                    color2 = next(colors2)
                     try:
                         data = get_data(f'StabilityFigures/{branchid}_real_{i}.csv')
-                        fig_stab_real.plot(data[0], data[1], color=color2)
+                        yrealdata[i] = np.append(yrealdata[i], data[1])
                         data = get_data(f'StabilityFigures/{branchid}_imag_{i}.csv')
-                        fig_stab_imag.plot(data[0], data[1], color=color2)
+                        yimagdata[i] = np.append(yimagdata[i], data[1])
                     except FileNotFoundError:
                         print("Less than 10 eigenvalues found")
+            import ipdb; ipdb.set_trace()
+            argsort = np.argsort(xdata)
+            xdata = xdata[argsort]
+            yudata = yudata[argsort]
+            yTdata = yTdata[argsort]
+            yBdata = yBdata[argsort]
+            for key in yrealdata:
+                yrealdata[key] = yrealdata[key][argsort]
+            for key in yimagdata:
+                yimagdata[key] = yimagdata[key][argsort]
+            fig_u.plot(xdata, yudata, color=color)
+            fig_T.plot(xdata, yTdata, color=color)
+            fig_B.plot(xdata, yBdata, color=color)
+            colors2 = get_colors()
+            for i in range(0, 10):
+                color2 = next(colors2)
+                try:
+                    fig_stab_real.plot(xdata, yrealdata[i], color=color2)
+                    fig_stab_imag.plot(xdata, yimagdata[i], color=color2)
+                except FileNotFoundError:
+                    print("Less than 10 eigenvalues found")
             image_files = [os.listdir(f"paraview/{branch}") for branch in outer_list]
             image_files = [os.path.join(f"paraview/{branch}", f) for branch in outer_list for f in os.listdir(f"paraview/{branch}")]
             image_files = [f for f in image_files if f.endswith(".png")]
