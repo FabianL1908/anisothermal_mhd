@@ -204,6 +204,10 @@ def smooth_data(arr):
 #        mid = (arr[i+1]-arr[i-1])*0.5+arr[i-1]
 #        if arr[i-1] > 1.0e-8 and abs((mid - arr[i])/arr[i-1]) > 0.2:
 #            arr[i] = mid
+    for i in range(1, len(arr)-2):
+        mid = (arr[i+1]-arr[i-1])*0.5+arr[i-1]
+        if abs(arr[i-1]) > 1.0e-8 and (abs((arr[i] - arr[i-1]))/abs(arr[i-1]) > 0.1) :
+            arr[i] = mid
     return arr
 
 def plot_stability_figures():
@@ -217,15 +221,29 @@ def plot_stability_figures():
 #        fig_stab_real = fig.add_subplot(grid[4:, :2])
 #        fig_stab_imag = fig.add_subplot(grid[4:, 2:])
 #        colors = get_colors()
-        fig = plt.figure(figsize=(8,6))
-        grid = plt.GridSpec(10, 8, hspace=10, wspace=10)
-        fig_u = fig.add_subplot(grid[:4, :4])
-        fig_T = fig.add_subplot(grid[:4, 4:])
-        fig_B = fig.add_subplot(grid[4:8, 2:6])
-        fig_stab_real = fig.add_subplot(grid[8:, :4])
-        fig_stab_imag = fig.add_subplot(grid[8:, 4:])
+        len_branch = len(branchids_dict[b_key])
+        if len_branch == 1:
+            fig = plt.figure(figsize=(10,8))
+            grid = plt.GridSpec(10, 8, hspace=14, wspace=14)
+            fig_u = fig.add_subplot(grid[:4, :4])
+            fig_T = fig.add_subplot(grid[:4, 4:])
+            fig_B = fig.add_subplot(grid[4:8, 2:6])
+            fig_stab_real = fig.add_subplot(grid[8:, :4])
+            fig_stab_imag = fig.add_subplot(grid[8:, 4:])
+        elif len_branch == 2:
+            fig = plt.figure(figsize=(12,8))
+            grid = plt.GridSpec(12, 8, hspace=14, wspace=14)
+            fig_u = fig.add_subplot(grid[:4, :4])
+            fig_T = fig.add_subplot(grid[:4, 4:])
+            fig_B = fig.add_subplot(grid[4:8, 2:6])
+            fig_stab_real = fig.add_subplot(grid[8:10, :4])
+            fig_stab_imag = fig.add_subplot(grid[8:10, 4:])            
+            fig_stab_real2 = fig.add_subplot(grid[10:12, :4])
+            fig_stab_imag2 = fig.add_subplot(grid[10:12, 4:])            
+        else:
+                raise ValueError("More than two plots per Graph are not possible")
         colors = get_colors()
-        for outer_list in branchids_dict[b_key]:
+        for plot_idx, outer_list in enumerate(branchids_dict[b_key]):
             xdata = np.array([])
             yudata = np.array([])
             yTdata = np.array([])
@@ -271,8 +289,14 @@ def plot_stability_figures():
                 if np.max(yrealdata[i]) > 480:
                     continue
                 try:
-                    fig_stab_real.plot(xdata, smooth_data(yrealdata[i]), color=color2)
-                    fig_stab_imag.plot(xdata, smooth_data(yimagdata[i]), color=color2)
+                    if plot_idx == 0:
+#                        if len_branch == 2:
+#                            import ipdb; ipdb.set_trace()
+                        fig_stab_real.plot(xdata, smooth_data(yrealdata[i]), color=color2)
+                        fig_stab_imag.plot(xdata, smooth_data(yimagdata[i]), color=color2)
+                    elif plot_idx == 1:
+                        fig_stab_real2.plot(xdata, smooth_data(yrealdata[i]), color=color2)
+                        fig_stab_imag2.plot(xdata, smooth_data(yimagdata[i]), color=color2)
                 except FileNotFoundError:
                     print("Less than 10 eigenvalues found")
             image_files = [os.listdir(f"paraview/{branch}") for branch in outer_list]
@@ -297,13 +321,31 @@ def plot_stability_figures():
 #        fig_u.set_major_locator(ticker.MultipleLocator(1))
         fig_T.set_xlabel(r"$\mathrm{Ra}$")
         fig_B.set_xlabel(r"$\mathrm{Ra}$")
-        fig_stab_real.set_xlabel(r"$\mathrm{Ra}$")
-        fig_stab_imag.set_xlabel(r"$\mathrm{Ra}$")
-        fig_u.set_ylabel(problem.functionals()[0][2])
-        fig_T.set_ylabel(problem.functionals()[1][2])
-        fig_B.set_ylabel(problem.functionals()[2][2])
-        fig_stab_real.set_ylabel(r"$\mathcal{R}(\lambda)$")
-        fig_stab_imag.set_ylabel(r"$\mathcal{I}(\lambda)$")
+        fig_u.set_ylabel(problem.functionals()[0][2], rotation=0, labelpad=15)
+        fig_T.set_ylabel(problem.functionals()[1][2], rotation=0, labelpad=15)
+        fig_B.set_ylabel(problem.functionals()[2][2], rotation=0, labelpad=15)
+        xlims = fig_u.get_xlim()
+        if plot_idx == 0:
+            fig_stab_real.set_xlabel(r"$\mathrm{Ra}$")
+            fig_stab_imag.set_xlabel(r"$\mathrm{Ra}$")
+            fig_stab_real.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
+            fig_stab_imag.set_ylabel(r"$\mathcal{I}(\lambda)$", rotation=0, labelpad=15)
+            if fig_stab_real.get_ylim()[1] < 20.0:
+                fig_stab_real.set_ylim(top=20)
+            fig_stab_real.axhline(0, color='black')
+            fig_stab_real.set_xlim(xlims)
+            fig_stab_imag.set_xlim(xlims)
+        elif plot_idx == 1:
+            fig_stab_real2.set_xlabel(r"$\mathrm{Ra}$")
+            fig_stab_imag2.set_xlabel(r"$\mathrm{Ra}$")
+            fig_stab_real2.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
+            fig_stab_imag2.set_ylabel(r"$\mathcal{I}(\lambda)$", rotation=0, labelpad=15)
+            if fig_stab_real2.get_ylim()[1] < 20.0:
+                fig_stab_real2.set_ylim(top=20)
+            fig_stab_real2.axhline(0, color='black')
+            fig_stab_real2.set_xlim(xlims)
+            fig_stab_imag2.set_xlim(xlims)
+#        fig_stab_imag.set_ylim(bottom=-0.001)
         
         plt.savefig(f'StabilityFigures/diagram_branch_{b_key}.png', dpi=800)
     
@@ -317,12 +359,12 @@ def plot_stability_figures():
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-    pool = Pool(40)
-    print(branchids)
-    for branchid in branchids:
-        knownparams = get_known_params(branchid)
-        pool.map(partial(stab_computation, branchid), knownparams)
-        create_stability_figures(branchid)
+#    pool = Pool(40)
+#    print(branchids)
+#    for branchid in branchids:
+#        knownparams = get_known_params(branchid)
+#        pool.map(partial(stab_computation, branchid), knownparams)
+#        create_stability_figures(branchid)
 #    create_pictures()
     plot_stability_figures()
 #    for branchid in [150, 151]:
