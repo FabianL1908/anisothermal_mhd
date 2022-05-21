@@ -165,11 +165,13 @@ def get_data(path):
 
 def add_annotationbox(im_path, x, y):
     l = len(x)
-#    import ipdb; ipdb.set_trace()
     zipped_list = list(zip(x,y))
     sort_key = lambda x: x[0]
     zipped_list = sorted(zipped_list, key=sort_key)
-    indices = (0, int(len(im_path)/2), -1)
+    xxx = np.array([int(im.split("/")[-1].split("_")[0]) for im in im_path])
+    xmid = (x[-1] - x[0]) / 2 + x[0]
+    midind = np.abs((xxx-xmid)).argmin()
+    indices = (0, midind-1, len(im_path)-1)
     if len(im_path) <= indices[-1]:
         im_list = [im_path[i] for i in (0, len(indices)-1)] 
     else:
@@ -188,7 +190,7 @@ def add_annotationbox(im_path, x, y):
         else:
             xybox = (xy[0], xy[1] - 0.5*(ymid-ymin))
         im = mpimg.imread(im_list[i])
-        imagebox = OffsetImage(im, zoom=0.02)
+        imagebox = OffsetImage(im, zoom=0.025)
         ab = AnnotationBbox(imagebox, xy,
                             frameon=False,
                             pad=0,
@@ -198,16 +200,32 @@ def add_annotationbox(im_path, x, y):
         ab_list.append(ab)
     return ab_list
 
+def smooth_data(arr):
+#    import ipdb; ipdb.set_trace()
+#    for i in range(1, len(arr)-2):
+#        mid = (arr[i+1]-arr[i-1])*0.5+arr[i-1]
+#        if arr[i-1] > 1.0e-8 and abs((mid - arr[i])/arr[i-1]) > 0.2:
+#            arr[i] = mid
+    return arr
+
 def plot_stability_figures():
     branchids_dict = get_branches()
     for b_key in branchids_dict:
-        fig = plt.figure()
-        grid = plt.GridSpec(5, 4, hspace=2, wspace=2)
-        fig_u = fig.add_subplot(grid[:2, :2])
-        fig_T = fig.add_subplot(grid[:2, 2:])
-        fig_B = fig.add_subplot(grid[2:4, 1:3])
-        fig_stab_real = fig.add_subplot(grid[4:, :2])
-        fig_stab_imag = fig.add_subplot(grid[4:, 2:])
+#        fig = plt.figure(figsize=(9,6))
+#        grid = plt.GridSpec(5, 4, hspace=2, wspace=2)
+#        fig_u = fig.add_subplot(grid[:2, :2])
+#        fig_T = fig.add_subplot(grid[:2, 2:])
+#        fig_B = fig.add_subplot(grid[2:4, 1:3])
+#        fig_stab_real = fig.add_subplot(grid[4:, :2])
+#        fig_stab_imag = fig.add_subplot(grid[4:, 2:])
+#        colors = get_colors()
+        fig = plt.figure(figsize=(8,6))
+        grid = plt.GridSpec(10, 8, hspace=10, wspace=10)
+        fig_u = fig.add_subplot(grid[:4, :4])
+        fig_T = fig.add_subplot(grid[:4, 4:])
+        fig_B = fig.add_subplot(grid[4:8, 2:6])
+        fig_stab_real = fig.add_subplot(grid[8:, :4])
+        fig_stab_imag = fig.add_subplot(grid[8:, 4:])
         colors = get_colors()
         for outer_list in branchids_dict[b_key]:
             xdata = np.array([])
@@ -221,6 +239,7 @@ def plot_stability_figures():
             yimagdata = defaultdict(def_value)
             color = next(colors)
             for branchid in outer_list:
+                print(f"Plotting branch {branchid}")
                 data = get_data(f'diagram_u/{branchid}.csv')
                 xdata = np.append(xdata, data[0])
                 yudata = np.append(yudata, data[1])
@@ -236,7 +255,6 @@ def plot_stability_figures():
                         yimagdata[i] = np.append(yimagdata[i], data[1])
                     except FileNotFoundError:
                         print("Less than 10 eigenvalues found")
-            import ipdb; ipdb.set_trace()
             argsort = np.argsort(xdata)
             xdata = xdata[argsort]
             yudata = yudata[argsort]
@@ -252,9 +270,11 @@ def plot_stability_figures():
             colors2 = get_colors()
             for i in range(0, 10):
                 color2 = next(colors2)
+                if np.max(yrealdata[i]) > 480:
+                    continue
                 try:
-                    fig_stab_real.plot(xdata, yrealdata[i], color=color2)
-                    fig_stab_imag.plot(xdata, yimagdata[i], color=color2)
+                    fig_stab_real.plot(xdata, smooth_data(yrealdata[i]), color=color2)
+                    fig_stab_imag.plot(xdata, smooth_data(yimagdata[i]), color=color2)
                 except FileNotFoundError:
                     print("Less than 10 eigenvalues found")
             image_files = [os.listdir(f"paraview/{branch}") for branch in outer_list]
@@ -263,6 +283,8 @@ def plot_stability_figures():
             sort_key = lambda x: int(x.split("/")[-1].split("_")[0])
             image_files = sorted(image_files, key=sort_key)
             u_image_files = [f for f in image_files if f.endswith("u.png")]
+            if b_key == '4':
+                import ipdb; ipdb.set_trace()
             ab_list = add_annotationbox(u_image_files, xdata, yudata)
             for ab in ab_list:
                 fig_u.add_artist(ab)
