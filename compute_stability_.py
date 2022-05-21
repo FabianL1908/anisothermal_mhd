@@ -88,7 +88,6 @@ def stab_computation(branchid, param):
         print(f"Stability for branchid {branchid} and param {param} was already computed")
     else:
         print("Computing stability for parameters %s, branchid = %d" % (str(param[0]), branchid),flush=True)
-
         consts = param
         #try:
 
@@ -201,7 +200,6 @@ def add_annotationbox(im_path, x, y):
     return ab_list
 
 def smooth_data(arr):
-#    import ipdb; ipdb.set_trace()
 #    for i in range(1, len(arr)-2):
 #        mid = (arr[i+1]-arr[i-1])*0.5+arr[i-1]
 #        if arr[i-1] > 1.0e-8 and abs((mid - arr[i])/arr[i-1]) > 0.2:
@@ -283,8 +281,6 @@ def plot_stability_figures():
             sort_key = lambda x: int(x.split("/")[-1].split("_")[0])
             image_files = sorted(image_files, key=sort_key)
             u_image_files = [f for f in image_files if f.endswith("u.png")]
-            if b_key == '4':
-                import ipdb; ipdb.set_trace()
             ab_list = add_annotationbox(u_image_files, xdata, yudata)
             for ab in ab_list:
                 fig_u.add_artist(ab)
@@ -321,11 +317,15 @@ def plot_stability_figures():
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-#    pool = Pool(40)
-#    print(branchids)
-#    for branchid in branchids:
+    pool = Pool(40)
+    print(branchids)
+    for branchid in branchids:
+        knownparams = get_known_params(branchid)
+        pool.map(partial(stab_computation, branchid), knownparams)
+        create_stability_figures(branchid)
+#    create_pictures()
+    plot_stability_figures()
+#    for branchid in [150, 151]:
 #        knownparams = get_known_params(branchid)
 #        pool.map(partial(stab_computation, branchid), knownparams)
 #        create_stability_figures(branchid)
-#    create_pictures()
-    plot_stability_figures()

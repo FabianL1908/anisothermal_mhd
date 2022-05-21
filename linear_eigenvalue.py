@@ -95,14 +95,15 @@ class EVRayleighBenardProblem(RB.RayleighBenardProblem):
             - 1/Pm * inner(div(B), div(C)) * dx
         )
 
-        my_z = Function(self.Z)
-        my_z.split()[0].interpolate(u0)
-        my_z.split()[1].interpolate(p0)
-        my_z.split()[2].interpolate(T0)
-        my_z.split()[3].interpolate(B0)
-        my_z.split()[4].interpolate(E0)
-        Fsol = -self.residual(my_z, params, test)
-        stabform = derivative(Fsol, my_z, trial)
+        if branchid == 0:
+            z = Function(self.Z)
+            z.split()[0].interpolate(u0)
+            z.split()[1].interpolate(p0)
+            z.split()[2].interpolate(T0)
+            z.split()[3].interpolate(B0)
+            z.split()[4].interpolate(E0)
+        Fsol = -self.residual(z, params, test)
+        stabform = derivative(Fsol, z, trial)
         massform = inner(u, v)*dx + inner(T, s)*dx + inner(B, C)*dx #+ inner(E, Ff)*dx
 #        stabform -= Ra*Pr*inner(split(trial)[2]*g, v)*dx 
 #        massform = -Pr*inner(T*g, v)*dx + inner(B,C)*dx
