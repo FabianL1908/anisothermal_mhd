@@ -325,17 +325,17 @@ def plot_stability_figures():
         fig_T.set_ylabel(problem.functionals()[1][2], rotation=0, labelpad=15)
         fig_B.set_ylabel(problem.functionals()[2][2], rotation=0, labelpad=15)
         xlims = fig_u.get_xlim()
-        if plot_idx == 0:
-            fig_stab_real.set_xlabel(r"$\mathrm{Ra}$")
-            fig_stab_imag.set_xlabel(r"$\mathrm{Ra}$")
-            fig_stab_real.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
-            fig_stab_imag.set_ylabel(r"$\mathcal{I}(\lambda)$", rotation=0, labelpad=15)
-            if fig_stab_real.get_ylim()[1] < 20.0:
-                fig_stab_real.set_ylim(top=20)
-            fig_stab_real.axhline(0, color='black')
-            fig_stab_real.set_xlim(xlims)
-            fig_stab_imag.set_xlim(xlims)
-        elif plot_idx == 1:
+         
+        fig_stab_real.set_xlabel(r"$\mathrm{Ra}$")
+        fig_stab_imag.set_xlabel(r"$\mathrm{Ra}$")
+        fig_stab_real.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
+        fig_stab_imag.set_ylabel(r"$\mathcal{I}(\lambda)$", rotation=0, labelpad=15)
+        if fig_stab_real.get_ylim()[1] < 20.0:
+            fig_stab_real.set_ylim(top=20)
+        fig_stab_real.axhline(0, color='black')
+        fig_stab_real.set_xlim(xlims)
+        fig_stab_imag.set_xlim(xlims)
+        if len_branch == 2:
             fig_stab_real2.set_xlabel(r"$\mathrm{Ra}$")
             fig_stab_imag2.set_xlabel(r"$\mathrm{Ra}$")
             fig_stab_real2.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
