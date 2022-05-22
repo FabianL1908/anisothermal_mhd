@@ -44,6 +44,8 @@ path = "CSV/%d"
 
 comm = COMM_WORLD
 
+num_eigs = 6
+
 # Construct mono-3d problem
 problem = RB.EVRayleighBenardProblem()
 mesh = problem.mesh(comm=comm)
@@ -144,7 +146,7 @@ def create_stability_figures(branchid):
             my_data[param] = np.array(data).astype(np.float32)
 
     try:
-        for i in range(0, 10):
+        for i in range(0, num_eigs):
             reals = np.array([my_data[param][i][0] for param in params])
             imags = np.array([my_data[param][i][1] for param in params])
             params = np.array(params)
@@ -152,7 +154,7 @@ def create_stability_figures(branchid):
             np.savetxt(f"{path_stab}/{branchid}_real_{i}.csv", np.vstack((params, reals)).T, delimiter=",")            
             np.savetxt(f"{path_stab}/{branchid}_imag_{i}.csv", np.vstack((params, imags)).T, delimiter=",")
     except IndexError:
-            print("Less than 10 eigenvalues found")
+            print(f"Less than {num_eigs} eigenvalues found")
 
 def get_data(path):
     with open(path, 'r') as f:
@@ -199,16 +201,22 @@ def add_annotationbox(im_path, x, y):
         ab_list.append(ab)
     return ab_list
 
-def smooth_data(arr):
+def smooth_data(xdata, arr):
 #    for i in range(1, len(arr)-2):
 #        mid = (arr[i+1]-arr[i-1])*0.5+arr[i-1]
 #        if arr[i-1] > 1.0e-8 and abs((mid - arr[i])/arr[i-1]) > 0.2:
 #            arr[i] = mid
+#    for i in range(2, len(arr)-3):
+#        mid = (arr[i+1]-arr[i-1])*0.5+arr[i-1]
+#        if (abs((arr[i] - arr[i-1]))/(abs(arr[i-1])+0.001) > 0.5) :
+#            arr[i] = mid
+    ind = []
     for i in range(1, len(arr)-2):
-        mid = (arr[i+1]-arr[i-1])*0.5+arr[i-1]
-        if abs(arr[i-1]) > 1.0e-8 and (abs((arr[i] - arr[i-1]))/abs(arr[i-1]) > 0.1) :
-            arr[i] = mid
-    return arr
+        if (abs((arr[i] - arr[i-1]))/(abs(arr[i-1])+0.001) > 0.1) :
+           ind.append(i)
+    xdata = np.delete(xdata, ind)
+    arr = np.delete(arr, ind)
+    return (xdata, arr)
 
 def plot_stability_figures():
     branchids_dict = get_branches()
@@ -231,7 +239,7 @@ def plot_stability_figures():
             fig_stab_real = fig.add_subplot(grid[8:, :4])
             fig_stab_imag = fig.add_subplot(grid[8:, 4:])
         elif len_branch == 2:
-            fig = plt.figure(figsize=(12,8))
+            fig = plt.figure(figsize=(12,12))
             grid = plt.GridSpec(12, 8, hspace=14, wspace=14)
             fig_u = fig.add_subplot(grid[:4, :4])
             fig_T = fig.add_subplot(grid[:4, 4:])
@@ -263,14 +271,14 @@ def plot_stability_figures():
                 yTdata = np.append(yTdata, data[1])
                 data = get_data(f'diagram_B/{branchid}.csv')
                 yBdata = np.append(yBdata, data[1])
-                for i in range(0, 10):
+                for i in range(0, num_eigs):
                     try:
                         data = get_data(f'StabilityFigures/{branchid}_real_{i}.csv')
                         yrealdata[i] = np.append(yrealdata[i], data[1])
                         data = get_data(f'StabilityFigures/{branchid}_imag_{i}.csv')
                         yimagdata[i] = np.append(yimagdata[i], data[1])
                     except FileNotFoundError:
-                        print("Less than 10 eigenvalues found")
+                        print(f"Less than {num_eigs} eigenvalues found")
             argsort = np.argsort(xdata)
             xdata = xdata[argsort]
             yudata = yudata[argsort]
@@ -284,21 +292,23 @@ def plot_stability_figures():
             fig_T.plot(xdata, yTdata, color=color)
             fig_B.plot(xdata, yBdata, color=color)
             colors2 = get_colors()
-            for i in range(0, 10):
+            for i in range(0, num_eigs):
                 color2 = next(colors2)
                 if np.max(yrealdata[i]) > 480:
                     continue
                 try:
+                    xdata_real, smooth_yrealdata = smooth_data(xdata, yrealdata[i]) 
+                    xdata_imag, smooth_yimagdata = smooth_data(xdata, yimagdata[i]) 
                     if plot_idx == 0:
-#                        if len_branch == 2:
+#                        if b_key == '8':
 #                            import ipdb; ipdb.set_trace()
-                        fig_stab_real.plot(xdata, smooth_data(yrealdata[i]), color=color2)
-                        fig_stab_imag.plot(xdata, smooth_data(yimagdata[i]), color=color2)
+                        fig_stab_real.plot(xdata_real, smooth_yrealdata, color=color2)
+                        fig_stab_imag.plot(xdata_imag, smooth_yimagdata, color=color2)
                     elif plot_idx == 1:
-                        fig_stab_real2.plot(xdata, smooth_data(yrealdata[i]), color=color2)
-                        fig_stab_imag2.plot(xdata, smooth_data(yimagdata[i]), color=color2)
+                        fig_stab_real2.plot(xdata_real, smooth_yrealdata, color=color2)
+                        fig_stab_imag2.plot(xdata_imag, smooth_yimagdata, color=color2)
                 except FileNotFoundError:
-                    print("Less than 10 eigenvalues found")
+                    print(f"Less than {num_eigs} eigenvalues found")
             image_files = [os.listdir(f"paraview/{branch}") for branch in outer_list]
             image_files = [os.path.join(f"paraview/{branch}", f) for branch in outer_list for f in os.listdir(f"paraview/{branch}")]
             image_files = [f for f in image_files if f.endswith(".png")]
