@@ -90,7 +90,7 @@ for branchid in branchids:
         Nu = np.append(Nu, funcs[0])
         NT = np.append(NT, funcs[1])
         NB = np.append(NB, funcs[2])
-    
+
     # save to text file
     knownparams_Ra = knownparams_Ra.reshape((len(knownparams_Ra), 1))
     Nu = Nu.reshape((len(Nu), 1))

@@ -167,9 +167,9 @@ class RayleighBenardProblem(BifurcationProblem):
             j = assemble(inner(B, B)*dx)
             return j
 
-        return [(u_L2, "u_sqL2", r"$\|u\|^2$"),
+        return [(u_L2, "u_sqL2", r"$\|\mathbf{u}\|^2$"),
                 (T_L2, "T_sqL2", r"$\|T\|^2$"),
-                (B_L2, "B_sqL2", r"$\|B\|^2$")]
+                (B_L2, "B_sqL2", r"$\|\mathbf{B}\|^2$")]
 
     def get_initial_indices(self, params):
 #        params = [1.0e5, 1.0, 100.0, 1.0]
@@ -309,7 +309,7 @@ class RayleighBenardProblem(BifurcationProblem):
         values = {#"Ra": linspace(10**5, 10**3, 40),
                   "Ra": [10**5],
                   "Pr": [1.0],
-                  "S": [1000.0],
+                  "S": [100.0],
                   "Pm": [10.0],
         }
         return values

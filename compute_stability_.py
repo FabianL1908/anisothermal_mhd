@@ -15,7 +15,8 @@ rc('lines', linewidth=0.7)
 from matplotlib.offsetbox import *
 import matplotlib.image as mpimg
 from PIL import Image
-
+import warnings
+from scipy import ndimage
 
 from firedrake import *
 from firedrake.mg.utils import get_level
@@ -25,7 +26,7 @@ from defcon import backend, StabilityTask
 from defcon.cli.common import fetch_bifurcation_problem
 from petsc4py import PETSc
 
-from utils import get_branches, get_colors
+from utils import get_branches, get_colors, get_rot_degree_dict
 
 #RB = __import__("rayleigh-benard")
 RB = __import__("linear_eigenvalue")
@@ -86,10 +87,10 @@ def get_known_params(branchid):
 
 def stab_computation(branchid, param):
 #    for param in [knownparams[0]]:
-    if os.path.exists(path%(branchid)+f"/{int(param[0])}.csv"):
-        print(f"Stability for branchid {branchid} and param {param} was already computed")
-    else:
-        print("Computing stability for parameters %s, branchid = %d" % (str(param[0]), branchid),flush=True)
+#    if os.path.exists(path%(branchid)+f"/{int(param[0])}.csv"):
+#        print(f"Stability for branchid {branchid} and param {param} was already computed")
+#    else:
+#        print("Computing stability for parameters %s, branchid = %d" % (str(param[0]), branchid),flush=True)
         consts = param
         #try:
 
@@ -128,8 +129,14 @@ def create_pictures():
 
     print("Run the following command on your local machine:")
     download_path = "laakmann@wolverine:" + os.getcwd()
-    print(f"scp -r {download_path}/paraview .; scp {download_path}/create_png.py .; /Applications/ParaView-5.10.1.app/Contents/bin/pvpython create_png.py; rm -rf paraview/*/*.pvd; rm -rf paraview/*/*.vtu; scp -r paraview/* {download_path}/paraview; rm -rf paraview/*")
-    input("Hit Enter when you are done:")
+    pic_branches = []
+    for branchid in branchids:
+        mypath = os.path.join("paraview", str(branchid))
+        png_files = [f for f in os.listdir(mypath) if os.path.join(mypath, f).endswith(".png")]
+        if not len(png_files) > 0:
+            pic_branches.append(branchid)
+    print(f"mkdir paraview; for branchid in {' '.join([str(num) for num in pic_branches])}; do scp -r {download_path}/paraview/$branchid paraview; done; scp {download_path}/create_png.py .; /Applications/ParaView-5.10.1.app/Contents/bin/pvpython create_png.py; rm -rf paraview/*/*.pvd; rm -rf paraview/*/*.vtu; scp -r paraview/* {download_path}/paraview; rm -rf paraview/*")
+#    input("Hit Enter when you are done:")
         
 def create_stability_figures(branchid):
     params = get_known_params(branchid)
@@ -164,7 +171,7 @@ def get_data(path):
     data = data.T
     return data
 
-def add_annotationbox(im_path, x, y):
+def add_annotationbox(im_path, x, y, rot_degree):
     l = len(x)
     zipped_list = list(zip(x,y))
     sort_key = lambda x: x[0]
@@ -172,7 +179,9 @@ def add_annotationbox(im_path, x, y):
     xxx = np.array([int(im.split("/")[-1].split("_")[0]) for im in im_path])
     xmid = (x[-1] - x[0]) / 2 + x[0]
     midind = np.abs((xxx-xmid)).argmin()
-    indices = (0, midind-1, len(im_path)-1)
+#    indices = (0, midind-1, len(im_path)-1)
+#    import ipdb; ipdb.set_trace()
+    indices = (0, min(2,int(midind/2)), midind-1, int((len(im_path)-midind)/2+midind-1), len(im_path)-1)
     if len(im_path) <= indices[-1]:
         im_list = [im_path[i] for i in (0, len(indices)-1)] 
     else:
@@ -191,6 +200,12 @@ def add_annotationbox(im_path, x, y):
         else:
             xybox = (xy[0], xy[1] - 0.5*(ymid-ymin))
         im = mpimg.imread(im_list[i])
+        if rot_degree >= 0:
+            im = ndimage.rotate(im, rot_degree)
+        elif rot_degree == -1:
+            im = np.fliplr(im)
+        elif rot_degree == -2:
+            im = np.flipud(im)
         imagebox = OffsetImage(im, zoom=0.025)
         ab = AnnotationBbox(imagebox, xy,
                             frameon=False,
@@ -210,16 +225,17 @@ def smooth_data(xdata, arr):
 #        mid = (arr[i+1]-arr[i-1])*0.5+arr[i-1]
 #        if (abs((arr[i] - arr[i-1]))/(abs(arr[i-1])+0.001) > 0.5) :
 #            arr[i] = mid
-    ind = []
-    for i in range(1, len(arr)-2):
-        if (abs((arr[i] - arr[i-1]))/(abs(arr[i-1])+0.001) > 0.1) :
-           ind.append(i)
-    xdata = np.delete(xdata, ind)
-    arr = np.delete(arr, ind)
+#    ind = []
+#    for i in range(1, len(arr)-2):
+#        if (abs((arr[i] - arr[i-1]))/(abs(arr[i-1])+0.001) > 0.1) :
+#           ind.append(i)
+#    xdata = np.delete(xdata, ind)
+#    arr = np.delete(arr, ind)
     return (xdata, arr)
 
 def plot_stability_figures():
     branchids_dict = get_branches()
+    rot_degree_dict = get_rot_degree_dict()
     for b_key in branchids_dict:
 #        fig = plt.figure(figsize=(9,6))
 #        grid = plt.GridSpec(5, 4, hspace=2, wspace=2)
@@ -262,6 +278,7 @@ def plot_stability_figures():
             yrealdata = defaultdict(def_value)
             yimagdata = defaultdict(def_value)
             color = next(colors)
+            max_num_branch = 100
             for branchid in outer_list:
                 print(f"Plotting branch {branchid}")
                 data = get_data(f'diagram_u/{branchid}.csv')
@@ -272,12 +289,15 @@ def plot_stability_figures():
                 data = get_data(f'diagram_B/{branchid}.csv')
                 yBdata = np.append(yBdata, data[1])
                 for i in range(0, num_eigs):
+                    if i >= max_num_branch:
+                        continue
                     try:
                         data = get_data(f'StabilityFigures/{branchid}_real_{i}.csv')
                         yrealdata[i] = np.append(yrealdata[i], data[1])
                         data = get_data(f'StabilityFigures/{branchid}_imag_{i}.csv')
                         yimagdata[i] = np.append(yimagdata[i], data[1])
                     except FileNotFoundError:
+                        max_num_branch = i
                         print(f"Less than {num_eigs} eigenvalues found")
             argsort = np.argsort(xdata)
             xdata = xdata[argsort]
@@ -292,38 +312,43 @@ def plot_stability_figures():
             fig_T.plot(xdata, yTdata, color=color)
             fig_B.plot(xdata, yBdata, color=color)
             colors2 = get_colors()
+            color3 = "b"
             for i in range(0, num_eigs):
                 color2 = next(colors2)
-                if np.max(yrealdata[i]) > 480:
-                    continue
                 try:
+#                    with warnings.catch_warnings():
+#                        warnings.simplefilter("ignore", category=RuntimeWarning)
+                    if len(yrealdata[i]) == 0 or np.mean(yrealdata[i]) > 400:
+                        continue
                     xdata_real, smooth_yrealdata = smooth_data(xdata, yrealdata[i]) 
                     xdata_imag, smooth_yimagdata = smooth_data(xdata, yimagdata[i]) 
                     if plot_idx == 0:
-#                        if b_key == '8':
+#                        if b_key == '1':
 #                            import ipdb; ipdb.set_trace()
-                        fig_stab_real.plot(xdata_real, smooth_yrealdata, color=color2)
-                        fig_stab_imag.plot(xdata_imag, smooth_yimagdata, color=color2)
+                        fig_stab_real.scatter(xdata_real, smooth_yrealdata, color=color3, marker='.')
+                        fig_stab_imag.scatter(xdata_imag, smooth_yimagdata, color=color3, marker='.')
                     elif plot_idx == 1:
-                        fig_stab_real2.plot(xdata_real, smooth_yrealdata, color=color2)
-                        fig_stab_imag2.plot(xdata_imag, smooth_yimagdata, color=color2)
+                        fig_stab_real2.scatter(xdata_real, smooth_yrealdata, color=color3, marker='.')
+                        fig_stab_imag2.scatter(xdata_imag, smooth_yimagdata, color=color3, marker='.')
                 except FileNotFoundError:
+                    print(f"Less than {num_eigs} eigenvalues found")
+                except ValueError:
                     print(f"Less than {num_eigs} eigenvalues found")
             image_files = [os.listdir(f"paraview/{branch}") for branch in outer_list]
             image_files = [os.path.join(f"paraview/{branch}", f) for branch in outer_list for f in os.listdir(f"paraview/{branch}")]
             image_files = [f for f in image_files if f.endswith(".png")]
             sort_key = lambda x: int(x.split("/")[-1].split("_")[0])
             image_files = sorted(image_files, key=sort_key)
-            u_image_files = [f for f in image_files if f.endswith("u.png")]
-            ab_list = add_annotationbox(u_image_files, xdata, yudata)
+            u_image_files = [f for f in image_files if f.endswith("u.png")]           
+            ab_list = add_annotationbox(u_image_files, xdata, yudata, rot_degree_dict[int(b_key)])
             for ab in ab_list:
                 fig_u.add_artist(ab)
             T_image_files = [f for f in image_files if f.endswith("T.png")]
-            ab_list = add_annotationbox(T_image_files, xdata, yTdata)
+            ab_list = add_annotationbox(T_image_files, xdata, yTdata, 0)
             for ab in ab_list:
                 fig_T.add_artist(ab)
             B_image_files = [f for f in image_files if f.endswith("B.png")]
-            ab_list = add_annotationbox(B_image_files, xdata, yBdata)
+            ab_list = add_annotationbox(B_image_files, xdata, yBdata, rot_degree_dict[int(b_key)])
             for ab in ab_list:
                 fig_B.add_artist(ab)
         fig_u.set_xlabel(r"$\mathrm{Ra}$")
@@ -341,7 +366,10 @@ def plot_stability_figures():
         fig_stab_real.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
         fig_stab_imag.set_ylabel(r"$\mathcal{I}(\lambda)$", rotation=0, labelpad=15)
         if fig_stab_real.get_ylim()[1] < 20.0:
+            y0 = fig_stab_real.get_ylim()[1]
             fig_stab_real.set_ylim(top=20)
+#            fig_stab_real.set_ylim(bottom=y0-2)
+        fig_stab_imag.set_ylim(bottom=0)
         fig_stab_real.axhline(0, color='black')
         fig_stab_real.set_xlim(xlims)
         fig_stab_imag.set_xlim(xlims)
@@ -350,8 +378,11 @@ def plot_stability_figures():
             fig_stab_imag2.set_xlabel(r"$\mathrm{Ra}$")
             fig_stab_real2.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
             fig_stab_imag2.set_ylabel(r"$\mathcal{I}(\lambda)$", rotation=0, labelpad=15)
+            fig_stab_imag2.set_ylim(bottom=0)
             if fig_stab_real2.get_ylim()[1] < 20.0:
+                y0 = fig_stab_real2.get_ylim()[1]
                 fig_stab_real2.set_ylim(top=20)
+ #               fig_stab_real2.set_ylim(bottom=y0-2)
             fig_stab_real2.axhline(0, color='black')
             fig_stab_real2.set_xlim(xlims)
             fig_stab_imag2.set_xlim(xlims)
@@ -371,13 +402,14 @@ def plot_stability_figures():
 if __name__ == "__main__":
 #    pool = Pool(40)
 #    print(branchids)
+#    create_pictures()
 #    for branchid in branchids:
 #        knownparams = get_known_params(branchid)
 #        pool.map(partial(stab_computation, branchid), knownparams)
 #        create_stability_figures(branchid)
-#    create_pictures()
-    plot_stability_figures()
-#    for branchid in [150, 151]:
-#        knownparams = get_known_params(branchid)
+#    plot_stability_figures()
+    for branchid in [188]:
+        knownparams = get_known_params(branchid)
 #        pool.map(partial(stab_computation, branchid), knownparams)
 #        create_stability_figures(branchid)
+        stab_computation(branchid, knownparams[-1]) 

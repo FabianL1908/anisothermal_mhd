@@ -17,6 +17,43 @@ from defcon import *
 
 import numpy
 import numpy as np
+from pyop2.datatypes import IntType
+
+class PressureFixBC(DirichletBC):
+    def __init__(self, V, val, subdomain, method="topological"):
+        super().__init__(V, val, subdomain, method)
+        sec = V.dm.getDefaultSection()
+        dm = V.mesh().topology_dm
+
+        coordsSection = dm.getCoordinateSection()
+        dim = dm.getCoordinateDim()
+        coordsVec = dm.getCoordinatesLocal()
+
+        (vStart, vEnd) = dm.getDepthStratum(0)
+        indices = []
+        for pt in range(vStart, vEnd):
+            x = dm.getVecClosure(coordsSection, coordsVec, pt).reshape(-1, dim).mean(axis=0)
+            if x.dot(x) == 0.0:  # fix [0, 0] in original mesh coordinates (bottom left corner)
+                if dm.getLabelValue("pyop2_ghost", pt) == -1:
+                    indices = [pt]
+                break
+
+        nodes = []
+        for i in indices:
+            if sec.getDof(i) > 0:
+                nodes.append(sec.getOffset(i))
+
+        if V.mesh().comm.rank == 0:
+            nodes = [0]
+        else:
+            nodes = []
+        self.nodes = numpy.asarray(nodes, dtype=IntType)
+
+        if len(self.nodes) > 0:
+            print("Fixing nodes %s" % self.nodes)
+        import sys
+        sys.stdout.flush()
+
 
 # Define two-dimensional versions of cross and curl operators
 def scross(x, y):
@@ -52,6 +89,7 @@ class EVRayleighBenardProblem(RB.RayleighBenardProblem):
                 DirichletBC(Z.sub(2), Constant(0.0), (3, 4)), # T = 0 at y = 0 and y = pi 3/4
                 DirichletBC(Z.sub(3), Constant((0.0, 0.0)), (1, 2, 3, 4)),
                 DirichletBC(Z.sub(4), Constant(0.0), (1, 2, 3, 4)),
+                PressureFixBC(Z.sub(1), 0, 1)
                 ]
         return bcs
 
@@ -185,14 +223,14 @@ class EVRayleighBenardProblem(RB.RayleighBenardProblem):
              "ksp_max_it": 10,
              "pc_type": "lu",
              "pc_factor_mat_solver_type": "mumps",
-#             "eps_monitor_all": None,
+             "eps_monitor_all": None,
              "eps_converged_reason": None,
              "eps_type": "krylovschur",
-             "eps_nev": 15,
+             "eps_nev": 25,
              "eps_max_it": 30,
              "eps_tol": 1e-8,
-             "eps_target": 500,
-             "epswhich": "smallest_magnitude",
+             "eps_target": 200,
+#             "epswhich": "smallest_magnitude",
              "st_type": "sinvert",
              "st_ksp_type": "preonly",
              "st_pc_type": "lu",
