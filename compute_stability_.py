@@ -12,6 +12,7 @@ from matplotlib import rc
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 10})
 rc('text', usetex=True)
 rc('lines', linewidth=0.7)
+rc('lines', markersize=3)
 from matplotlib.offsetbox import *
 import matplotlib.image as mpimg
 from PIL import Image
@@ -87,10 +88,10 @@ def get_known_params(branchid):
 
 def stab_computation(branchid, param):
 #    for param in [knownparams[0]]:
-#    if os.path.exists(path%(branchid)+f"/{int(param[0])}.csv"):
-#        print(f"Stability for branchid {branchid} and param {param} was already computed")
-#    else:
-#        print("Computing stability for parameters %s, branchid = %d" % (str(param[0]), branchid),flush=True)
+    if os.path.exists(path%(branchid)+f"/{int(param[0])}.csv"):
+        print(f"Stability for branchid {branchid} and param {param} was already computed")
+    else:
+        print("Computing stability for parameters %s, branchid = %d" % (str(param[0]), branchid),flush=True)
         consts = param
         #try:
 
@@ -135,7 +136,7 @@ def create_pictures():
         png_files = [f for f in os.listdir(mypath) if os.path.join(mypath, f).endswith(".png")]
         if not len(png_files) > 0:
             pic_branches.append(branchid)
-    print(f"mkdir paraview; for branchid in {' '.join([str(num) for num in pic_branches])}; do scp -r {download_path}/paraview/$branchid paraview; done; scp {download_path}/create_png.py .; /Applications/ParaView-5.10.1.app/Contents/bin/pvpython create_png.py; rm -rf paraview/*/*.pvd; rm -rf paraview/*/*.vtu; scp -r paraview/* {download_path}/paraview; rm -rf paraview/*")
+    print(f"mkdir paraview; for branchid in {' '.join([str(num) for num in pic_branches])}; do scp -r {download_path}/paraview/$branchid paraview; done; scp {download_path}/create_png.py .; /Applications/ParaView-5.10.1.app/Contents/bin/pvpython create_png.py; rm -rf paraview/*/*.pvd; rm -rf paraview/*/*.vtu; scp -r paraview/* {download_path}/paraview; rm -rf paraview/*", flush=True)
 #    input("Hit Enter when you are done:")
         
 def create_stability_figures(branchid):
@@ -280,7 +281,7 @@ def plot_stability_figures():
             color = next(colors)
             max_num_branch = 100
             for branchid in outer_list:
-                print(f"Plotting branch {branchid}")
+                print(f"{b_key}: Plotting branch {branchid}")
                 data = get_data(f'diagram_u/{branchid}.csv')
                 xdata = np.append(xdata, data[0])
                 yudata = np.append(yudata, data[1])
@@ -365,9 +366,13 @@ def plot_stability_figures():
         fig_stab_imag.set_xlabel(r"$\mathrm{Ra}$")
         fig_stab_real.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
         fig_stab_imag.set_ylabel(r"$\mathcal{I}(\lambda)$", rotation=0, labelpad=15)
-        if fig_stab_real.get_ylim()[1] < 20.0:
-            y0 = fig_stab_real.get_ylim()[1]
-            fig_stab_real.set_ylim(top=20)
+        y0 = fig_stab_real.get_ylim()[0]
+        fig_stab_real.set_ylim(bottom=y0-2)
+        y0 = fig_stab_imag.get_ylim()[0]
+        fig_stab_imag.set_ylim(bottom=y0-2)
+        if fig_stab_real.get_ylim()[1] < 10.0:
+#            y0 = fig_stab_real.get_ylim()[0]
+            fig_stab_real.set_ylim(top=10)
 #            fig_stab_real.set_ylim(bottom=y0-2)
         fig_stab_imag.set_ylim(bottom=0)
         fig_stab_real.axhline(0, color='black')
@@ -379,15 +384,29 @@ def plot_stability_figures():
             fig_stab_real2.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
             fig_stab_imag2.set_ylabel(r"$\mathcal{I}(\lambda)$", rotation=0, labelpad=15)
             fig_stab_imag2.set_ylim(bottom=0)
-            if fig_stab_real2.get_ylim()[1] < 20.0:
-                y0 = fig_stab_real2.get_ylim()[1]
-                fig_stab_real2.set_ylim(top=20)
- #               fig_stab_real2.set_ylim(bottom=y0-2)
+            y0 = fig_stab_real2.get_ylim()[0]
+            fig_stab_real2.set_ylim(bottom=y0-2)
+            y0 = fig_stab_imag2.get_ylim()[0]
+            fig_stab_imag2.set_ylim(bottom=y0-2)
+            if fig_stab_real2.get_ylim()[1] < 10.0:
+#                y0 = fig_stab_real2.get_ylim()[1]
+                fig_stab_real2.set_ylim(top=10)
+#                fig_stab_real2.set_ylim(bottom=y0-2)
             fig_stab_real2.axhline(0, color='black')
             fig_stab_real2.set_xlim(xlims)
             fig_stab_imag2.set_xlim(xlims)
 #        fig_stab_imag.set_ylim(bottom=-0.001)
-        
+            real_ylim = list(fig_stab_real.get_ylim())
+            imag_ylim = list(fig_stab_imag.get_ylim())
+            real_ylim[0] = min(fig_stab_real.get_ylim()[0], fig_stab_real2.get_ylim()[0])
+            real_ylim[1] = max(fig_stab_real.get_ylim()[1], fig_stab_real2.get_ylim()[1])
+            imag_ylim[0] = min(fig_stab_imag.get_ylim()[0], fig_stab_imag.get_ylim()[0])
+            imag_ylim[1] = max(fig_stab_imag.get_ylim()[1], fig_stab_imag.get_ylim()[1])
+            fig_stab_real.set_ylim(real_ylim)
+            fig_stab_imag.set_ylim(imag_ylim)
+            fig_stab_real2.set_ylim(real_ylim)
+            fig_stab_imag2.set_ylim(imag_ylim)
+            
         plt.savefig(f'StabilityFigures/diagram_branch_{b_key}.png', dpi=800)
     
     
@@ -407,9 +426,9 @@ if __name__ == "__main__":
 #        knownparams = get_known_params(branchid)
 #        pool.map(partial(stab_computation, branchid), knownparams)
 #        create_stability_figures(branchid)
-#    plot_stability_figures()
-    for branchid in [188]:
-        knownparams = get_known_params(branchid)
+    plot_stability_figures()
+#    for branchid in [188]:
+#        knownparams = get_known_params(branchid)
 #        pool.map(partial(stab_computation, branchid), knownparams)
 #        create_stability_figures(branchid)
-        stab_computation(branchid, knownparams[-1]) 
+#        stab_computation(branchid, knownparams[-1]) 

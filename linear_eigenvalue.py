@@ -49,8 +49,8 @@ class PressureFixBC(DirichletBC):
             nodes = []
         self.nodes = numpy.asarray(nodes, dtype=IntType)
 
-        if len(self.nodes) > 0:
-            print("Fixing nodes %s" % self.nodes)
+#        if len(self.nodes) > 0:
+#            print("Fixing nodes %s" % self.nodes)
         import sys
         sys.stdout.flush()
 
@@ -223,10 +223,10 @@ class EVRayleighBenardProblem(RB.RayleighBenardProblem):
              "ksp_max_it": 10,
              "pc_type": "lu",
              "pc_factor_mat_solver_type": "mumps",
-             "eps_monitor_all": None,
+#             "eps_monitor_all": None,
              "eps_converged_reason": None,
              "eps_type": "krylovschur",
-             "eps_nev": 25,
+             "eps_nev": 20,
              "eps_max_it": 30,
              "eps_tol": 1e-8,
              "eps_target": 200,

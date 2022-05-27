@@ -80,7 +80,6 @@ for branchid in branchids:
         print("Computing functional for parameters %s, branchid = %d" %
               (str(param[0]), branchid), flush=True)
         solution = io.fetch_solutions(param, [branchid])[0]
-        
         funcs = []
         for functional in functionals:
             func = functional[0]
@@ -101,8 +100,6 @@ for branchid in branchids:
     np.savetxt("diagram_B/%d.csv"%branchid, np.hstack((knownparams_Ra, NB)), delimiter=",")
 
 def plot_diagram():
-    colors = get_colors()
-    linestyles = get_linestyles()
 #    fig = plt.figure()
 #    grid = plt.GridSpec(8, 8, hspace=2, wspace=2)
 #    fig_u = fig.add_subplot(grid[1:4, 1:4])
@@ -110,6 +107,10 @@ def plot_diagram():
 #    fig_B = fig.add_subplot(grid[4:, 4:])
 #    figures = [fig_u, fig_T, fig_B]
     for idx, dgrm_type in enumerate(["u", "T", "B"]):
+#        import ipdb; ipdb.set_trace()
+        plt.figure()
+        colors = get_colors()
+        linestyles = get_linestyles()
         branchid_dict = get_branches()
         for b_key in branchid_dict:
             color = next(colors)
@@ -126,16 +127,17 @@ def plot_diagram():
                 full_data = np.sort(full_data, axis=0)
                 full_data = full_data.T
                 plt.plot(full_data[0], full_data[1], color=color, label=f"{b_key}", linestyle=linestyle)
-            plt.xlabel(r"$\mathrm{Ra}$")
-            plt.ylabel(functionals[idx][2], rotation=0, labelpad=15)
+        plt.xlabel(r"$\mathrm{Ra}$")
+        plt.ylabel(functionals[idx][2], rotation=0, labelpad=15)
+        if dgrm_type == "u":
             plt.ylim(bottom=0)
-            plt.xlim(right=10**5)
-            plt.tight_layout()
-            handles, labels = plt.gca().get_legend_handles_labels()
-            by_label = dict(zip(labels, handles))
-            plt.legend(by_label.values(), by_label.keys(), bbox_to_anchor=(1, 1))
-#            plt.legend(bbox_to_anchor=(1, 1.0))
-            plt.savefig(f'diagram_{dgrm_type}.png', dpi=400)
+        plt.xlim(right=10**5)
+#        plt.tight_layout()
+        handles, labels = plt.gca().get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        plt.legend(by_label.values(), by_label.keys(), bbox_to_anchor=(1.0, 1.0))
+ #            plt.legend(bbox_to_anchor=(1, 1.0))
+        plt.savefig(f'diagram_{dgrm_type}.png', dpi=400, bbox_inches="tight")
 
     colors = get_colors()
     fig = plt.figure()
