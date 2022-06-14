@@ -103,11 +103,11 @@ class RayleighBenardProblem(BifurcationProblem):
         (v, q, s, C, Ff) = split(w)
         g = Constant((0, 1))
         nn = FacetNormal(self.mesh)
-        gamma = Constant(1)
+        gamma = Constant(0)
         eps = lambda x: sym(grad(x))
 
         F = (
-              2 * inner(eps(u), eps(v))*dx
+              2 * Pr * inner(eps(u), eps(v))*dx
             + inner(dot(grad(u), u), v) * dx
             + gamma * inner(div(u), div(v)) * dx
             + S * inner(vcross(B, E), v) * dx
@@ -116,11 +116,11 @@ class RayleighBenardProblem(BifurcationProblem):
             - inner(div(u), q) * dx
             + inner(E, Ff) * dx
             + inner(scross(u, B), Ff) * dx
-            - 1/Pm * inner(B, vcurl(Ff)) * dx
+            - Pr/Pm * inner(B, vcurl(Ff)) * dx
             + inner(vcurl(E), C) * dx
-            + 1/Pm * inner(div(B), div(C)) * dx
-            - Ra/Pr * inner(g*T, v) * dx
-            + 1/Pr * inner(grad(T), grad(s)) * dx
+            + Pr/Pm * inner(div(B), div(C)) * dx
+            - Ra*Pr * inner(g*T, v) * dx
+            + inner(grad(T), grad(s)) * dx
             + inner(dot(u, grad(T)), s) * dx
 #            - inner(dot(grad(T), nn), s)*ds(3)
 #            - inner(dot(grad(T), nn), s)*ds(4)

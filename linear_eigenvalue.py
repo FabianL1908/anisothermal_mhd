@@ -117,9 +117,9 @@ class EVRayleighBenardProblem(RB.RayleighBenardProblem):
         eps = lambda x: sym(grad(x))
 
         stabform = (
-            - 2 * inner(eps(u), eps(v))*dx
+            - 2 * Pr * inner(eps(u), eps(v))*dx
             + Ra*Pr*inner(T*g, v)*dx
-            - 1/Pr * inner(grad(T), grad(s))*dx
+            - inner(grad(T), grad(s))*dx
             + inner(-dot(grad(T0), u), s)*dx
             - gamma * inner(div(u), div(v)) * dx
             - S * inner(vcross(B0, E), v) * dx
@@ -128,9 +128,9 @@ class EVRayleighBenardProblem(RB.RayleighBenardProblem):
             + inner(div(u), q) * dx
             - inner(E, Ff) * dx
             - inner(scross(u, B0), Ff) * dx
-            + 1/Pm * inner(B, vcurl(Ff)) * dx
+            + Pr/Pm * inner(B, vcurl(Ff)) * dx
             - inner(vcurl(E), C) * dx
-            - 1/Pm * inner(div(B), div(C)) * dx
+            - Pr/Pm * inner(div(B), div(C)) * dx
         )
 
         if branchid == 0:
