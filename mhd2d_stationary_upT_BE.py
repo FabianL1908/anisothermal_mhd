@@ -344,7 +344,7 @@ nsfsstar = {
     "fieldsplit_1": {
             "ksp_type": "preonly",
             "pc_type": "python",
-            "pc_python_type": "alfi.solver.DGMassInv"        
+            "pc_python_type": "alfi.solver.DGMassInv",      
            #"ksp_type": "gmres",
            #"ksp_max_it": 2,
            #"pc_type": "python",
@@ -377,16 +377,18 @@ nsfsmacrostar = {
            "mg_levels_ksp_max_it": 6,
            "mg_levels_ksp_norm_type": "unpreconditioned",
            "mg_levels_pc_type": "python",
-           "mg_levels_pc_python_type": "firedrake.PatchPC",
-           "mg_levels_patch_pc_patch_save_operators": True,
-           "mg_levels_patch_pc_patch_partition_of_unity": False,
-           "mg_levels_patch_pc_patch_sub_mat_type": "seqaij",
-           "mg_levels_patch_pc_patch_construct_dim": 0,
-           "mg_levels_patch_pc_patch_construct_type": "python",
-           "mg_levels_patch_pc_patch_construct_python_type": "alfi.MacroStar",
-           "mg_levels_patch_sub_ksp_type": "preonly",
-           "mg_levels_patch_sub_pc_type": "lu",
-           "mg_levels_patch_sub_pc_factor_mat_solver_type": "umfpack",
+           "mg_levels_pc_python_type": "firedrake.ASMStarPC",
+           "mg_levels_pc_star_backend": "tinyasm",
+#           "mg_levels_pc_python_type": "firedrake.PatchPC",
+#           "mg_levels_patch_pc_patch_save_operators": True,
+#           "mg_levels_patch_pc_patch_partition_of_unity": False,
+#           "mg_levels_patch_pc_patch_sub_mat_type": "seqaij",
+#           "mg_levels_patch_pc_patch_construct_dim": 0,
+#           "mg_levels_patch_pc_patch_construct_type": "python",
+#           "mg_levels_patch_pc_patch_construct_python_type": "alfi.MacroStar",
+#           "mg_levels_patch_sub_ksp_type": "preonly",
+#           "mg_levels_patch_sub_pc_type": "lu",
+#           "mg_levels_patch_sub_pc_factor_mat_solver_type": "umfpack",
            "mg_coarse_ksp_type": "richardson",
            "mg_coarse_ksp_max_it": 1,
            "mg_coarse_ksp_norm_type": "unpreconditioned",
@@ -534,7 +536,7 @@ fs3by2 = {
     "mat_type": "aij",
     "pc_type": "fieldsplit",
     "pc_fieldsplit_type": "schur",
-    "pc_fieldsplit_schur_factorization_type": "upper",    
+    "pc_fieldsplit_schur_factorization_type": "upper",   
     "pc_fieldsplit_0_fields": "0,1,2",
     "pc_fieldsplit_1_fields": "3,4",
 }
@@ -624,6 +626,7 @@ parser.add_argument("--baseN", type=int, default=20)
 parser.add_argument("--k", type=int, default=2)
 parser.add_argument("--nref", type=int, default=2)
 parser.add_argument("--Ra", nargs='+', type=float, default=[1])
+parser.add_argument("--S", nargs='+', type=float, default=[1])
 parser.add_argument("--Pr", nargs='+', type=float, default=[1])
 parser.add_argument("--Pm", nargs='+', type=float, default=[1])
 parser.add_argument("--gamma", type=float, default=10000)
@@ -632,11 +635,12 @@ parser.add_argument("--advect", type=float, default=1)
 parser.add_argument("--hierarchy", choices=["bary", "uniform"], default="bary")
 parser.add_argument("--discr", choices=["rt", "bdm", "cg"], required=True)
 parser.add_argument("--solver-type", choices=list(solvers.keys()), default="lu")
-parser.add_argument("--testproblem", choices=["ldc", "smooth"], default="Wathen")
+parser.add_argument("--testproblem", choices=["hc", "smooth", "ldc2"], default="Wathen")
 parser.add_argument("--linearisation", choices=["picard", "mdp", "newton"], required=True)
 parser.add_argument("--stab", default=False, action="store_true")
 parser.add_argument("--checkpoint", default=False, action="store_true")
 parser.add_argument("--output", default=False, action="store_true")
+parser.add_argument("--alternative-bcs", default=False, action="store_true")
 
 args, _ = parser.parse_known_args()
 baseN = args.baseN
@@ -657,10 +661,16 @@ linearisation = args.linearisation
 stab = args.stab
 checkpoint = args.checkpoint
 output = args.output
+alternative_bcs = args.alternative_bcs
+S = Constant(args.S[0])
+#S = Pm
 
-Re = Constant(1)
-Rem = Constant(1)
-S = Constant(1)
+#Re = Constant(1)
+#Re = Constant(100)
+#Rem = Constant(1)
+
+if alternative_bcs:
+    print("Using alternative boundary conditions")
 
 # Stabilisation weight for BurmanStabilisation
 stab_weight = Constant(3e-3)
@@ -759,7 +769,7 @@ g = as_vector([0,1])
 
 # Base weak form of problem
 F = (
-      2/Re * inner(eps(u), eps(v))*dx
+      2 * Pr * inner(eps(u), eps(v))*dx
     # + advect * inner(dot(grad(u), u), v) * dx
     + gamma * inner(div(u), div(v)) * dx
     + S * inner(vcross(B, E), v) * dx
@@ -768,23 +778,22 @@ F = (
     - inner(div(u), q) * dx
     + inner(E, Ff) * dx
     + inner(scross(u, B), Ff) * dx
-    - 1/Pm * inner(B, vcurl(Ff)) * dx
+    - Pr/Pm * inner(B, vcurl(Ff)) * dx
     + inner(vcurl(E), C) * dx
-    + 1/Pm * inner(div(B), div(C)) * dx
-    + gamma2 * inner(div(B), div(C)) * dx
-    - Ra/Pr * inner(g*T , v) * dx
-    + 1/Pr * inner(grad(T), grad(s)) * dx
+    + Pr/Pm * inner(div(B), div(C)) * dx
+    - Ra * Pr * inner(g*T , v) * dx
+    + inner(grad(T), grad(s)) * dx
     + inner(dot(u, grad(T)), s) * dx
 )
 
 # Compute RHS for Method of Manufactured Solution (MMS)
 def compute_rhs(u_ex, B_ex, T_ex, p_ex, E_ex):
     E_ex_ = interpolate(E_ex, R)
-    f1 = (-2/Re * div(eps(u_ex)) + advect * dot(grad(u_ex), u_ex) - gamma * grad(div(u_ex))
-          + grad(p_ex) + S * vcross(B_ex, (E_ex + scross(u_ex, B_ex))) - Ra/Pr * g*T_ex)
-    f2 = + vcurl(E_ex_) - 1/Pm * grad(div(B_ex)) - gamma2 * grad(div(B_ex))
-    f3 = -1/Pm * scurl(B_ex) + E_ex + scross(u_ex, B_ex)
-    f4 = -1/Pr * div(grad(T_ex)) + dot(u_ex, grad(T_ex))
+    f1 = (-2 * Pr * div(eps(u_ex)) + advect * dot(grad(u_ex), u_ex) - gamma * grad(div(u_ex))
+          + grad(p_ex) + S * vcross(B_ex, (E_ex + scross(u_ex, B_ex))) - Ra * Pr * g*T_ex)
+    f2 = + vcurl(E_ex_) - Pr/Pm * grad(div(B_ex))
+    f3 = -Pr/Pm * scurl(B_ex) + E_ex + scross(u_ex, B_ex)
+    f4 = - div(grad(T_ex)) + dot(u_ex, grad(T_ex))
     return (f1, f2, f3, f4)
 
 
@@ -795,6 +804,7 @@ if testproblem == "smooth":
     T_ex = cos(x)
     p_ex = sin(x)
     E_ex = sin(x)*cos(x) # 1.0e-13*x
+    E_ex = 1.0e-13*x
     
     (f1, f2, f3, f4) = compute_rhs(u_ex, B_ex, T_ex, p_ex, E_ex)
     rhs = True  # because RHS is zero
@@ -804,6 +814,12 @@ if testproblem == "smooth":
            DirichletBC(Z.sub(3), B_ex, "on_boundary"),
            DirichletBC(Z.sub(4), E_ex, "on_boundary"),
            PressureFixBC(Z.sub(1), 0, 1)]
+
+    if alternative_bcs:
+        bcs = [DirichletBC(Z.sub(0), u_ex, "on_boundary"),
+               DirichletBC(Z.sub(2), T_ex, "on_boundary"),
+               PressureFixBC(Z.sub(1), 0, 1)]
+        F += 1/Pm * inner(scross(B_ex, n), Ff) * ds
 
     # Do we know what the exact solution of the problem is?
     solution_known = True
@@ -817,23 +833,56 @@ if testproblem == "smooth":
     bcs_ids_dont_apply = None
 
 
-elif testproblem == "ldc":
-    # example taken from https://doi.org/10.1016/j.jcp.2016.04.019
+elif testproblem == "hc":
     u_ex = Constant((0, 0), domain=mesh)
     B_ex = Constant((0, 1), domain=mesh)
     B_ex = project(B_ex, W)
 
     bcs_ids_apply = (1, 2, 3, 4)
     bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),  # 4 == upper boundary (y==1)
-           DirichletBC(Z.sub(2), 1, 2),
-           DirichletBC(Z.sub(2), 0, 1),
+           DirichletBC(Z.sub(2), 0, 2),
+           DirichletBC(Z.sub(2), 1, 1),
            DirichletBC(Z.sub(3), B_ex, "on_boundary"),
            DirichletBC(Z.sub(4), 0, "on_boundary"),
            PressureFixBC(Z.sub(1), 0, 1)]
+
+    if alternative_bcs:
+        bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),
+               DirichletBC(Z.sub(2), 1, 2),
+               DirichletBC(Z.sub(2), 0, 1),
+               PressureFixBC(Z.sub(1), 0, 1)]
+        F += 1/Pm * inner(scross(B_ex, n), Ff) * ds
     rhs = None
     solution_known = False
     bc_varying = False
     bcs_ids_dont_apply = None
+
+elif testproblem == "ldc2":
+    # example taken from https://doi.org/10.1016/j.jcp.2016.04.019
+    u_ex = Constant((1, 0), domain=mesh)
+#    B_ex = Constant((0, 1), domain=mesh)
+    B_ex = Constant((1, 0), domain=mesh)
+    B_ex = project(B_ex, W)
+
+    bcs_ids_apply = (4)
+    bcs_ids_dont_apply = (1, 2, 3)
+    bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),  # 4 == upper boundary (y==1)
+           DirichletBC(Z.sub(0), 0, bcs_ids_dont_apply),
+           DirichletBC(Z.sub(2), 0, 2),
+           DirichletBC(Z.sub(2), 0, 1),
+           DirichletBC(Z.sub(3), B_ex, "on_boundary"),
+           DirichletBC(Z.sub(4), 0, "on_boundary"),
+           PressureFixBC(Z.sub(1), 0, 1)]
+
+    if alternative_bcs:
+        bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),
+               DirichletBC(Z.sub(2), 1, 2),
+               DirichletBC(Z.sub(2), 0, 1),
+               PressureFixBC(Z.sub(1), 0, 1)]
+        F += 1/Pm * inner(scross(B_ex, n), Ff) * ds
+    rhs = None
+    solution_known = False
+    bc_varying = False
 
 if solution_known:
     u_ex_ = interpolate(u_ex, V)
@@ -864,12 +913,12 @@ if discr in ["rt", "bdm"]:
     uflux_ext_2 = 0.5*(inner(u, n) - theta*abs(inner(u, n))) * u_ex
 
     F_DG = (
-         - 1/Re * inner(avg(2*sym(grad(u))), 2*avg(outer(v, n))) * dS
-         - 1/Re * inner(avg(2*sym(grad(v))), 2*avg(outer(u, n))) * dS
-         + 1/Re * sigma/avg(h) * inner(2*avg(outer(u, n)), 2*avg(outer(v, n))) * dS
-         - inner(outer(v, n), 2/Re*sym(grad(u))) * ds
-         - inner(outer(u-u_ex, n), 2/Re*sym(grad(v))) * ds(bcs_ids_apply)
-         + 1/Re*(sigma/h)*inner(v, u-u_ex) * ds(bcs_ids_apply)
+         - Pr * inner(avg(2*sym(grad(u))), 2*avg(outer(v, n))) * dS
+         - Pr * inner(avg(2*sym(grad(v))), 2*avg(outer(u, n))) * dS
+         + Pr * sigma/avg(h) * inner(2*avg(outer(u, n)), 2*avg(outer(v, n))) * dS
+         - inner(outer(v, n), 2*Pr*sym(grad(u))) * ds
+         - inner(outer(u-u_ex, n), 2*Pr*sym(grad(v))) * ds(bcs_ids_apply)
+         + Pr*(sigma/h)*inner(v, u-u_ex) * ds(bcs_ids_apply)
          - advect * dot(u, div(outer(v, u))) * dx
          + advect * dot(v('+')-v('-'), uflux_int('+')-uflux_int('-')) * dS
          + advect * dot(v, uflux_ext_1) * ds
@@ -878,8 +927,8 @@ if discr in ["rt", "bdm"]:
 
     if bcs_ids_dont_apply is not None:
         F_DG += (
-            - inner(outer(u, n), 2/Re*sym(grad(v))) * ds(bcs_ids_dont_apply)
-            + 1/Re*(sigma/h)*inner(v, u) * ds(bcs_ids_dont_apply)
+            - inner(outer(u, n), 2*Pr*sym(grad(v))) * ds(bcs_ids_dont_apply)
+            + Pr*(sigma/h)*inner(v, u) * ds(bcs_ids_dont_apply)
            )
 
     F += F_DG
@@ -920,7 +969,7 @@ else:
 
 problem = NonlinearVariationalProblem(F, z, bcs, J=J)
 
-appctx = {"Re": Re, "gamma": gamma, "nu": 1/Re, "Pm": Pm, "gamma2": gamma2}
+appctx = {"Re": 1.0/Pr, "gamma": gamma, "nu": Pr, "Pm": Pm, "gamma2": gamma2}
 params = solvers[args.solver_type]
 
 # Depending on the Mesh Hierarchy we have to use star or macrostar solver
@@ -937,7 +986,7 @@ if args.hierarchy == "bary":
 solver = NonlinearVariationalSolver(problem, solver_parameters=params, options_prefix="", appctx=appctx)
 qtransfer = NullTransfer()
 Etransfer = NullTransfer()
-vtransfer = SVSchoeberlTransfer((1/Re, gamma), 2, hierarchy)
+vtransfer = SVSchoeberlTransfer((Pr, gamma), 2, hierarchy)
 dgtransfer = DGInjection()
 
 transfers = {
@@ -977,7 +1026,7 @@ def run(ra, pm, pr):
         ind1 = ra
         ind2 = pr*pm
     else:
-        ind1 = ra*pr
+        ind1 = ra*pr #ra*pr
         ind2 = pm
 
     if bc_varying:
@@ -1014,15 +1063,6 @@ def run(ra, pm, pr):
     if stab:
         stabilisation.update(z.split()[0])
         z_last_u.assign(u)
-
-    # For the continuation in Re we set up the solver again
-    if float(Re) == 100:
-        if mesh.comm.rank == 0:
-            print("Setting up new solver", flush=True)
-        global solver
-        problem = NonlinearVariationalProblem(F, z, bcs, J=J)
-        solver = NonlinearVariationalSolver(problem, solver_parameters=params, options_prefix="", appctx=appctx)
-        solver.set_transfer_manager(transfermanager)
 
     # Solve the problem and measure time
     start = datetime.now()
@@ -1122,6 +1162,14 @@ def run(ra, pm, pr):
         if output:
             pvd.write(u, p, T, B, E, time=float(ind1)*float(ind2))
 
+#    B_ex_ = interpolate(B_ex, B.function_space())
+#    error_B_bndy_n = sqrt(assemble(inner(dot((B_ex_-B),n), dot((B_ex_-B),n))*ds))
+#    error_B_bndy_t = sqrt(assemble(inner(scross((B_ex_-B),n), scross((B_ex_-B),n))*ds))
+
+#    if mesh.comm.rank == 0:
+#        print("Error ||(B_ex - B)*n||_L^2 = %s" % error_B_bndy_n)
+#        print("Error ||(B_ex - B)*t||_L^2 = %s" % error_B_bndy_t)
+                
     message(BLUE % info_dict)
 
     # Write iteration numbers to file
