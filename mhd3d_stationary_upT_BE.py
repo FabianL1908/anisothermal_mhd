@@ -398,11 +398,11 @@ outerschurlu = {
 # Main solver
 fs3by2 = {
     "snes_type": "newtonls",
-    "snes_max_it": 25,
+    "snes_max_it": 10,
     "snes_linesearch_type": "basic",
     "snes_linesearch_maxstep": 1.0,
-    "snes_rtol": 1.0e-10,
-    "snes_atol": 1.0e-6,
+    "snes_rtol": 1.0e-9,
+    "snes_atol": 2.5e-6,
     "snes_monitor": None,
     "ksp_type": "fgmres",
     "ksp_max_it": 75,
@@ -510,7 +510,7 @@ parser.add_argument("--gamma2", type=float, default=0)
 parser.add_argument("--advect", type=float, default=1)
 parser.add_argument("--hierarchy", choices=["bary", "uniform"], default="bary")
 parser.add_argument("--solver-type", choices=list(solvers.keys()), default="lu")
-parser.add_argument("--testproblem", choices=["ldc", "3dgenerator", "smooth"], default="smooth")
+parser.add_argument("--testproblem", choices=["hc", "3dgenerator", "smooth"], default="smooth")
 parser.add_argument("--discr", choices=["rt", "bdm", "cg"], required=True)
 parser.add_argument("--linearisation", choices=["picard", "mdp", "newton"], required=True)
 parser.add_argument("--stab", default=False, action="store_true")
@@ -537,8 +537,8 @@ stab = args.stab
 checkpoint = args.checkpoint
 output = args.output
 
-Re = Constant(1)
-Rem = Constant(1)
+#Re = Constant(1)
+#Rem = Constant(1)
 S = Constant(1)
 
 
@@ -634,18 +634,18 @@ if checkpoint:
         chk.load(z)
     except Exception as e:
         message(e)
-    (u_, p_, B_, E_) = z.split()
+    (u_, p_, T_, B_, E_) = z.split()
     z_last_u.assign(u_)
 
 (x, y, zz) = SpatialCoordinate(Z.mesh())
 n = FacetNormal(mesh)
 
 eps = lambda x: sym(grad(x))
-g = as_vector([0,0,1])
+g = as_vector([0,1,0])
 
 # Base weak form of problem
 F = (
-      2/Re * inner(eps(u), eps(v))*dx
+      2*Pr * inner(eps(u), eps(v))*dx
     # + advect * inner(dot(grad(u), u), v) * dx
     + gamma * inner(div(u), div(v)) * dx
     + S * inner(cross(B, E), v) * dx
@@ -654,12 +654,11 @@ F = (
     - inner(div(u), q) * dx
     + inner(E, Ff) * dx
     + inner(cross(u, B), Ff) * dx
-    - 1/Pm * inner(B, curl(Ff)) * dx
+    - Pr/Pm * inner(B, curl(Ff)) * dx
     + inner(curl(E), C) * dx
-    + 1/Pm * inner(div(B), div(C)) * dx
-    + gamma2 * inner(div(B), div(C)) * dx
-    - Ra/Pr * inner(g*T , v) * dx
-    + 1/Pr * inner(grad(T), grad(s)) * dx
+    + Pr/Pm * inner(div(B), div(C)) * dx
+    - Ra*Pr * inner(g*T , v) * dx
+    + inner(grad(T), grad(s)) * dx
     + inner(dot(u, grad(T)), s) * dx
 )
 
@@ -668,11 +667,11 @@ F = (
 
 def compute_rhs(u_ex, B_ex, T_ex, p_ex, E_ex):
     E_ex_ = interpolate(E_ex, R)
-    f1 = (-2/Re * div(eps(u_ex)) + advect * dot(grad(u_ex), u_ex) - gamma * grad(div(u_ex))
-          + grad(p_ex) + S * cross(B_ex, (E_ex + cross(u_ex, B_ex))) - Ra/Pr * g*T_ex)
-    f2 = + curl(E_ex_) - 1/Pm * grad(div(B_ex)) - gamma2 * grad(div(B_ex))
-    f3 = -1/Pm * curl(B_ex) + E_ex + cross(u_ex, B_ex)
-    f4 = -1/Pr * div(grad(T_ex)) + dot(u_ex, grad(T_ex))
+    f1 = (-2*Pr * div(eps(u_ex)) + advect * dot(grad(u_ex), u_ex) - gamma * grad(div(u_ex))
+          + grad(p_ex) + S * cross(B_ex, (E_ex + cross(u_ex, B_ex))) - Ra*Pr * g*T_ex)
+    f2 = + curl(E_ex_) - Pr/Pm * grad(div(B_ex))
+    f3 = -Pr/Pm * curl(B_ex) + E_ex + cross(u_ex, B_ex)
+    f4 = -div(grad(T_ex)) + dot(u_ex, grad(T_ex))
     return (f1, f2, f3, f4)
 
 if testproblem == "smooth":
@@ -744,7 +743,7 @@ elif testproblem == "3dgenerator":
     bc_varying = True
 
 
-elif testproblem == "ldc":
+elif testproblem == "hc":
     # example taken from https://doi.org/10.1016/j.jcp.2016.04.019
     u_ex = Constant((0, 0, 0), domain=mesh)
     B_ex = Constant((0, 1, 0), domain=mesh)
@@ -754,8 +753,8 @@ elif testproblem == "ldc":
     bcs_ids_dont_apply = None
 
     bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),  # 4 == upper boundary (y==1)
-           DirichletBC(Z.sub(2), 1, 2),
-           DirichletBC(Z.sub(2), 0, 1),
+           DirichletBC(Z.sub(2), 0, 2),
+           DirichletBC(Z.sub(2), 1, 1),
            DirichletBC(Z.sub(3), B_ex, "on_boundary"),
            DirichletBC(Z.sub(4), 0, "on_boundary"),
            PressureFixBC(Z.sub(1), 0, 1)]
@@ -788,12 +787,12 @@ if discr in ["rt", "bdm"]:
     uflux_ext_2 = 0.5*(inner(u, n) - theta*abs(inner(u, n)))*u_ex
 
     F_DG = (
-         - 1/Re * inner(avg(2*sym(grad(u))), 2*avg(outer(v, n))) * dS
-         - 1/Re * inner(avg(2*sym(grad(v))), 2*avg(outer(u, n))) * dS
-         + 1/Re * sigma/avg(h) * inner(2*avg(outer(u, n)), 2*avg(outer(v, n))) * dS
-         - inner(outer(v, n), 2/Re*sym(grad(u))) * ds
-         - inner(outer(u-u_ex, n), 2/Re*sym(grad(v))) * ds(bcs_ids_apply)
-         + 1/Re*(sigma/h)*inner(v, u-u_ex) * ds(bcs_ids_apply)
+         - Pr * inner(avg(2*sym(grad(u))), 2*avg(outer(v, n))) * dS
+         - Pr * inner(avg(2*sym(grad(v))), 2*avg(outer(u, n))) * dS
+         + Pr * sigma/avg(h) * inner(2*avg(outer(u, n)), 2*avg(outer(v, n))) * dS
+         - inner(outer(v, n), 2*Pr*sym(grad(u))) * ds
+         - inner(outer(u-u_ex, n), 2*Pr*sym(grad(v))) * ds(bcs_ids_apply)
+         + Pr*(sigma/h)*inner(v, u-u_ex) * ds(bcs_ids_apply)
          - advect * dot(u, div(outer(v, u))) * dx
          + advect * dot(v('+')-v('-'), uflux_int('+')-uflux_int('-')) * dS
          + advect * dot(v, uflux_ext_1) * ds
@@ -802,8 +801,8 @@ if discr in ["rt", "bdm"]:
 
     if bcs_ids_dont_apply is not None:
         F_DG += (
-            - inner(outer(u, n), 2/Re*sym(grad(v))) * ds(bcs_ids_dont_apply)
-            + 1/Re*(sigma/h)*inner(v, u) * ds(bcs_ids_dont_apply)
+            - inner(outer(u, n), 2*Pr*sym(grad(v))) * ds(bcs_ids_dont_apply)
+            + Pr*(sigma/h)*inner(v, u) * ds(bcs_ids_dont_apply)
            )
 
     F += F_DG
@@ -862,7 +861,7 @@ if args.hierarchy == "bary":
 solver = NonlinearVariationalSolver(problem, solver_parameters=params, options_prefix="", appctx=appctx)
 qtransfer = NullTransfer()
 Etransfer = NullTransfer()
-vtransfer = SVSchoeberlTransfer((1/Re, gamma), 2, hierarchy)
+vtransfer = SVSchoeberlTransfer((Pr, gamma), 2, hierarchy)
 dgtransfer = DGInjection()
 
 transfers = {
@@ -929,15 +928,6 @@ def run(ra, pm, pr):
     if stab:
         stabilisation.update(z.split()[0])
         z_last_u.assign(u)
-
-    # For the continuation in Re we set up the solver again
-    if float(Re) == 100:
-        if mesh.comm.rank == 0:
-            print("Setting up new solver", flush=True)
-        global solver
-        problem = NonlinearVariationalProblem(F, z, bcs, J=J)
-        solver = NonlinearVariationalSolver(problem, solver_parameters=params, options_prefix="", appctx=appctx)
-        solver.set_transfer_manager(transfermanager)
 
     # Solve the problem and measure time
     start = datetime.now()
