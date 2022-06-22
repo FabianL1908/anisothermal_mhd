@@ -635,7 +635,7 @@ parser.add_argument("--advect", type=float, default=1)
 parser.add_argument("--hierarchy", choices=["bary", "uniform"], default="bary")
 parser.add_argument("--discr", choices=["rt", "bdm", "cg"], required=True)
 parser.add_argument("--solver-type", choices=list(solvers.keys()), default="lu")
-parser.add_argument("--testproblem", choices=["hc", "smooth", "ldc2"], default="Wathen")
+parser.add_argument("--testproblem", choices=["cooling_channel","hc", "smooth", "ldc2"], default="Wathen")
 parser.add_argument("--linearisation", choices=["picard", "mdp", "newton"], required=True)
 parser.add_argument("--stab", default=False, action="store_true")
 parser.add_argument("--checkpoint", default=False, action="store_true")
@@ -684,6 +684,10 @@ if discr == "cg" and hierarchy != "bary":
 
 base = UnitSquareMesh(baseN, baseN, diagonal="crossed", distribution_parameters=distribution_parameters)
 
+if testproblem == "cooling_channel":
+    base = RectangleMesh(5*baseN, baseN, 10, 2, diagonal="crossed", distribution_parameters=distribution_parameters)
+    
+
 # Callbacks called before and after mesh refinement
 
 
@@ -710,11 +714,17 @@ elif hierarchy == "uniform":
 else:
     raise NotImplementedError("Only know bary, uniformbary and uniform for the hierarchy.")
 
+if testproblem == "cooling_channel":
+    for m in mh:
+        m.coordinates.dat.data[:, 1] -= 1.0
+    mesh = mh[-1]
+else:
 # Change mesh from [0,1]^2 to [-0.5,0.5]^2
-for m in mh:
-    m.coordinates.dat.data[:, 0] -= 0.5
-    m.coordinates.dat.data[:, 1] -= 0.5
-mesh = mh[-1]
+    for m in mh:
+        m.coordinates.dat.data[:, 0] -= 0.5
+        m.coordinates.dat.data[:, 1] -= 0.5
+    mesh = mh[-1]
+
 
 area = assemble(Constant(1, domain=mh[0])*dx)
 
@@ -765,7 +775,7 @@ n = FacetNormal(mesh)
 t = as_vector([n[1], -n[0]])
 
 eps = lambda x: sym(grad(x))
-g = as_vector([0,1])
+g = as_vector([0, 1])
 
 # Base weak form of problem
 F = (
@@ -856,6 +866,39 @@ elif testproblem == "hc":
     solution_known = False
     bc_varying = False
     bcs_ids_dont_apply = None
+
+elif testproblem == "cooling_channel":
+    u_ex = Constant((1, 0), domain=mesh)
+    B_ex = Constant((0, 1), domain=mesh)
+    B_ex = project(B_ex, W)
+#    u_ex = as_vector([(y-1)*(y+1), 0]) 
+#    bcs_ids_apply = (1, 2, 3, 4)
+    bcs_ids_apply = (1)
+    bcs_ids_dont_apply = (3, 4)
+    x1 = 1
+    x2 = 2
+    T_hot = 1.0
+    T_bc = conditional(x>x2, 0, conditional(x<x1, T_hot, T_hot*(x-x2)/(x1-x2)))
+    
+    bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),  # 4 == upper boundary (y==1)
+           DirichletBC(Z.sub(0), 0, bcs_ids_dont_apply),
+           DirichletBC(Z.sub(2), T_hot, 1),
+           DirichletBC(Z.sub(2), T_bc, 3),
+           DirichletBC(Z.sub(2), T_bc, 4),
+           DirichletBC(Z.sub(3), B_ex, "on_boundary"),
+           DirichletBC(Z.sub(4), 0, "on_boundary"),
+           PressureFixBC(Z.sub(1), 0, 1)]
+
+    if alternative_bcs:
+        bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),
+               DirichletBC(Z.sub(2), T_hot, 1),
+               DirichletBC(Z.sub(2), T_bc, 3),
+               DirichletBC(Z.sub(2), T_bc, 4),
+               PressureFixBC(Z.sub(1), 0, 1)]
+        F += 1/Pm * inner(scross(B_ex, n), Ff) * ds
+    rhs = None
+    solution_known = False
+    bc_varying = False
 
 elif testproblem == "ldc2":
     # example taken from https://doi.org/10.1016/j.jcp.2016.04.019
