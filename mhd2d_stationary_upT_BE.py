@@ -209,9 +209,9 @@ class SchurPCBE(AuxiliaryOperatorPC):
         A = (
              + 1*inner(E, Ff) * dx
              + inner(scross(u_n, B), Ff) * dx
-             - 1/Pm * inner(B, vcurl(Ff)) * dx
+             - Pr/Pm * inner(B, vcurl(Ff)) * dx
              + inner(vcurl(E), C) * dx
-             + 1/Pm * inner(div(B), div(C)) * dx
+             + Pr/Pm * inner(div(B), div(C)) * dx
              + gamma2 * inner(div(B), div(C)) * dx
                       )
 
