@@ -929,10 +929,10 @@ appctx = {"Re": 1.0/Pr, "gamma": gamma, "nu": Pr, "Pm": Pm, "gamma2": gamma2}
 params = solvers[args.solver_type]
 
 # Depending on the Mesh Hierarchy we have to use star or macrostar solver
-if args.solver_type in ["fs2by2", "fs2by2slu"]:
+if args.solver_type in ["fs3by2", "fs3by2slu"]:
     params["fieldsplit_0"] = nsfsstar if hierarchy == "uniform" else nsfsmacrostar
 
-if args.solver_type in ["fs2by2", "fs2by2nslu"]:
+if args.solver_type in ["fs3by2", "fs3by2nslu"]:
     params["fieldsplit_1"] = outerschurstar if hierarchy == "uniform" else outerschurmacrostar
 
 # Set up nonlinear solver for first time step
