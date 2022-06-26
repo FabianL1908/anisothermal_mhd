@@ -1,44 +1,68 @@
-all:
-	python3 compute_stability.py
-	python3 initial_guess.py
-	mpiexec -n 10 python3 rayleigh-benard.py
-	defcon gui -p rayleigh-benard.py
+solver_type=fs3by2
+discr=bdm
+hierarchy=uniform
+dt=0.01
+Tf=0.1
+k=2
+output= --output
+Ncores=48
 
-clean:
-	rm -rf output
-	rm -rf initial_guess
-	rm -rf tmp
+ifeq ($(dim),2)
+	Ncores=64
+	baseN=16
+	nref=6
+else
+ifeq ($(dim),3)
+	Ncores=40
+	baseN=8
+	nref=3
+endif
+endif
 
-gui:
-	defcon gui -p rayleigh-benard.py
+exec=srun --ntasks-per-node $(Ncores) ${VIRTUAL_ENV}/bin/python
 
-branches=0 166 42
-stability:
-	python3 save_functional.py --branchids $(branches)
-	python3 compute_stability_.py --branchids $(branches)
-	#cp -r pcitrues
+ifeq ($(mode),stat)
+	Ras2=10 100 300 1000 3000 10000 30000 100000 200000 500000 1000000
+	Prs1=1 0.1 0.01 0.003 0.001
+	Prs2=1.0 0.1 0.01 0.001
+endif
 
-my_vec=1 2 3
-test:
-	for xx in $(my_vec); do echo $$xx; done
+ifeq ($(mode),time)
+	Ras=1 100000 1000000
+	Prs=1 0.1 0.01 0.001
+endif
 
-create_latex:
-	cp diagram_u/* Tex_RB/data/diagram_u/
-	cp diagram_T/* Tex_RB/data/diagram_T/
-	cp diagram_B/* Tex_RB/data/diagram_B/
-	cp StabilityFigures/* Tex_RB/data/StabilityFigures/
-	cd Tex_RB; for branchid in $(branches); do cp diagram_Fabian.tex diagram_$$branchid.tex; sed -i '' "s/branchid{}/branchid{$$branchid}/" diagram_$$branchid.tex; pdflatex -shell-escape diagram_$$branchid; done; cd ..
+file_stat=mhd$(dim)d_stationary_upT_BE.py
+file_time=mhd$(dim)d_timedep_upT_BE.py
 
-branches=34 34 34 34 34 34 34 34 34 34 34 34
-fig3:
-#	cp diagram_u/* Tex_RB/data/diagram_u/
-#	cp diagram_T/* Tex_RB/data/diagram_T/
-#	cp diagram_B/* Tex_RB/data/diagram_B/
-#	cp StabilityFigures/* Tex_RB/data/StabilityFigures/
-	cd Tex_RB; sed -i '' "s/XXXXX/$(branches)/" bifurcation_diagram.tex; pdflatex -shell-escape bifurcation_diagram; cp bifurcation_diagram_XXXXX.tex bifurcation_diagram.tex; cd ..
+pre:
+	mkdir -p logs/
+	mkdir -p results/
+	mkdir -p dump/
 
-testt:
-	sed -i '' "s/$(branches)/XXXXX" bifurcation_diagram.tex
+clean_error:
+	rm -rf error.txt
 
-recompile_latex:
-	cd Tex_RB; for branchid in $(branches); do pdflatex -shell-escape diagram_$$branchid; done; cd ..
+allstat: newtonstat picardstat
+
+alltime: newtontime picardtime
+
+newtonstat: pre
+	for pr in $(Prs1); do $(exec) $(file_stat) --baseN $(baseN) --k $(k) --nref $(nref) --discr $(discr) --Pr $$pr --Pm 1 --S 1 --Ra 1 --gamma 1000 --gamma2 0 --hierarchy $(hierarchy) --solver-type $(solver_type) --testproblem $(testproblem) --linearisation newton --stab $(output) --checkpoint2 2>&1 | tee -a logs/ldcnewton.log; done
+	for pr in $(Prs2);  do $(exec) $(file_stat) --baseN $(baseN) --k $(k) --nref $(nref) --discr $(discr) --Pr $$pr --Pm 1 --S 1 --Ra $(Ras2) --gamma 1000 --gamma2 0 --hierarchy $(hierarchy) --solver-type $(solver_type) --testproblem $(testproblem) --linearisation newton --stab $(output) --checkpoint  2>&1 | tee -a logs/ldcnewton.log; done
+
+picardstat: pre
+	$(exec) $(file_stat) --baseN $(baseN) --k $(k) --nref $(nref) --discr $(discr) --Re 1 --Rem $(Rems) --S $(S) --gamma 1000 --gamma2 0 --hierarchy $(hierarchy) --solver-type $(solver_type) --testproblem $(testproblem) --linearisation picard --stab $(output) 2>&1 | tee -a logs/ldcpicard.log
+	$(exec) $(file_stat) --baseN $(baseN) --k $(k) --nref $(nref) --discr $(discr) --Re $(Res) --Rem $(Rems) --S $(S) --gamma 1000 --gamma2 0 --hierarchy $(hierarchy) --solver-type $(solver_type) --testproblem $(testproblem) --linearisation picard --stab $(output) --checkpoint 2>&1 | tee -a logs/ldcpicard.log
+
+newtontime: pre
+	$(exec) $(file_time) --baseN $(baseN) --k $(k) --nref $(nref) --discr $(discr) --Re $(Res) --Rem $(Rems) --S $(S) --gamma 1000 --gamma2 0 --hierarchy $(hierarchy) --solver-type $(solver_type) --testproblem $(testproblem) --linearisation newton --stab $(output) --dt $(dt) --Tf $(Tf) | tee -a logs/ldcnewton.log
+
+picardtime: pre
+	$(exec) $(file_time) --baseN $(baseN) --k $(k) --nref $(nref) --discr $(discr) --Re $(Res) --Rem $(Rems) --S $(S) --gamma 1000 --gamma2 0 --hierarchy $(hierarchy) --solver-type $(solver_type) --testproblem $(testproblem) --linearisation picard --stab $(output) --dt $(dt) --Tf $(Tf) | tee -a logs/ldcpicard.log
+
+test: pre
+	mpiexec -n 2 python mhd2d_stationary.py --baseN 10 --k 2 --nref 1 --discr bdm --Re 1 --Rem 1 --S 1 --gamma 1000 --gamma2 0 --hierarchy uniform --solver-type fs2by2 --testproblem ldc --linearisation newton --stab
+
+printresults:
+	python3 print_results.py --testproblem $(testproblem)

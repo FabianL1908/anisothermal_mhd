@@ -24,8 +24,10 @@ for linearisation in linearisations:
         values_1.append(val1)
         values_2.append(val2)
     key = lambda x: float(x)
-    values_1 = sorted(np.unique(values_1), key=key)
-    values_2 = sorted(np.unique(values_2), key=key)
+    reverse1 = np.min([float(v) for v in values_1]) < 1.0
+    reverse2 = np.min([float(v) for v in values_2]) < 1.0
+    values_1 = sorted(np.unique(values_1), key=key, reverse=reverse1)
+    values_2 = sorted(np.unique(values_2), key=key, reverse=reverse2)
 
     df = pd.DataFrame(index = values_1, columns = values_2)
 

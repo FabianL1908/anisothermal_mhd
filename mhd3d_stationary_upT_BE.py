@@ -886,12 +886,12 @@ pvd = File("output/mhd.pvd")
 
 def get_ind_dict(ra, pm, pr):
     # Indices for output depending on Ra-Pr, Ra-Pm or Pr-Pm table
-    if len(args.Ra) == 1:
+    if len(args.Pm) == 1:
+        ind_dict = {"Ra": ra, "Pr": pr}
+    elif len(args.Ra) == 1:
         ind_dict = {"Pr": pr, "Pm": pm}
     elif len(args.Pr) == 1:
         ind_dict = {"Ra": ra, "Pm": pm}
-    elif len(args.Pm) == 1:
-        ind_dict = {"Ra": ra, "Pr": pr}
     else:
         raise ValueError("Can only iterate over two elements of Ra, Pm, Pr")
     return ind_dict
