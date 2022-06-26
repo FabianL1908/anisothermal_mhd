@@ -714,7 +714,10 @@ if testproblem == "ldc":
 elif testproblem == "hc":
     u_ex = Constant((0, 0), domain=mesh)
     B_ex = Constant((0, 1), domain=mesh)
+    p_ex = Constant(0, domain=mesh)
     B_ex = project(B_ex, W)
+    E_ex = Constant(0, domain=mesh)
+    T_ex = -(x-0.5)
 
     bcs_ids_apply = (1, 2, 3, 4)
     bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),  # 4 == upper boundary (y==1)
@@ -970,6 +973,18 @@ Prs = args.Pr
 
 pvd = File("output/mhd.pvd")
 
+def get_ind_dict(ra, pm, pr):
+    # Indices for output depending on Ra-Pr, Ra-Pm or Pr-Pm table
+    if len(args.Ra) == 1:
+        ind_dict = {"Pr": pr, "Pm": pm}
+    elif len(args.Pr) == 1:
+        ind_dict = {"Ra": ra, "Pm": pm}
+    elif len(args.Pm) == 1:
+        ind_dict = {"Ra": ra, "Pr": pr}
+    else:
+        raise ValueError("Can only iterate over two elements of Ra, Pm, Pr")
+    return ind_dict
+
 def run(ra, pm, pr):
     (u, p, T, B, E) = z.split()
     Ra.assign(ra)
@@ -980,13 +995,8 @@ def run(ra, pm, pr):
     z1.assign(initial_condition())
     z.assign(z0)
 
-    # Indices for output depending on Ra-Pr, Ra-Pm or Pr-Pm table
-    if len(args.Pr) == 1 or len(args.Pm) == 1:
-        ind1 = ra
-        ind2 = pr*pm
-    else:
-        ind1 = ra*pr #ra*pr
-        ind2 = pm
+    ind_dict = get_ind_dict(ra, pm, pr)
+    val1, val2 = list(ind_dict.values())
 
     # Set things up for timestepping
     Tf = args.Tf  # final time
@@ -1136,7 +1146,7 @@ def run(ra, pm, pr):
         z_last_u.assign(u)
         if not os.path.exists("dump/"):
             os.mkdir("dump/")
-        chk = DumbCheckpoint("dump/"+str(float(ind2))+str(linearisation)+str(testproblem), mode=FILE_CREATE)
+        chk = DumbCheckpoint("dump/"+str(float(val2))+str(linearisation)+str(testproblem), mode=FILE_CREATE)
         chk.store(z)
 
         # update time step
@@ -1155,7 +1165,7 @@ def run(ra, pm, pr):
         dir = 'results/results'+str(linearisation)+str(testproblem)+'/'
         if not os.path.exists(dir):
             os.mkdir(dir)
-        f = open(dir+str(float(ind1))+str(float(ind2))+'.txt', 'w+')
+        f = open(f"{dir}{list(ind_dict.keys())[0]}_{list(ind_dict.keys())[1]}_{float(val1)}_{float(val2)}.txt", 'w+')
         f.write("({0:2.1f}){1:4.1f}".format(float(avg_nonlinear_its), float(avg_linear_its)))
         f.close()
 
@@ -1175,9 +1185,6 @@ for pm in Pms:
                 dir = 'results/results'+str(linearisation)+str(testproblem)+'/'
                 if not os.path.exists(dir):
                     os.mkdir(dir)
-                if len(args.Pr) == 1 or len(args.Pm) == 1:
-                    f = open(dir+str(float(ra))+str(float(pm*pr))+'.txt', 'w+')
-                else:
-                    f = open(dir+str(float(ra*pr))+str(float(pm))+'.txt', 'w+')
+                f = open(dir+str(float(val1))+str(float(val2))+'.txt', 'w+')
                 f.write("({0:2.0f}){1:4.1f}".format(0, 0))
                 f.close()
