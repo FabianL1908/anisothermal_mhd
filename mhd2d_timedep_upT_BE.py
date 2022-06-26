@@ -1040,14 +1040,16 @@ def run(ra, pm, pr):
 
         # Do CN in first timestep, after that BDF2
         start = datetime.now()
-        if ntimestep < 1:
+        if ntimestep < 10:
             dt_factor.assign(0.5)
             solver = solver_cn
             solver_cn.solve()
+            dt = args.dt/10
         else:
             dt_factor.assign(2.0/3.0)
             solver = solver_bdf2
             solver_bdf2.solve()
+            dt = args.dt
         end = datetime.now()
 
         # Iteration numbers for this time step
@@ -1185,6 +1187,11 @@ for pm in Pms:
                 dir = 'results/results'+str(linearisation)+str(testproblem)+'/'
                 if not os.path.exists(dir):
                     os.mkdir(dir)
-                f = open(dir+str(float(val1))+str(float(val2))+'.txt', 'w+')
-                f.write("({0:2.0f}){1:4.1f}".format(0, 0))
-                f.close()
+                ind_dict = get_ind_dict(ra, pm, pr)
+                val1, val2 = list(ind_dict.values())
+                try:
+                    f = open(f"{dir}{list(ind_dict.keys())[0]}_{list(ind_dict.keys())[1]}_{float(val1)}_{float(val2)}.txt", 'w+')
+                    f.write("({0:2.0f}){1:4.1f}".format(0, 0))
+                    f.close()
+                except Exception as e:
+                    message(e)
