@@ -884,19 +884,26 @@ Prs = args.Pr
 
 pvd = File("output/mhd.pvd")
 
+def get_ind_dict(ra, pm, pr):
+    # Indices for output depending on Ra-Pr, Ra-Pm or Pr-Pm table
+    if len(args.Ra) == 1:
+        ind_dict = {"Pr": pr, "Pm": pm}
+    elif len(args.Pr) == 1:
+        ind_dict = {"Ra": ra, "Pm": pm}
+    elif len(args.Pm) == 1:
+        ind_dict = {"Ra": ra, "Pr": pr}
+    else:
+        raise ValueError("Can only iterate over two elements of Ra, Pm, Pr")
+    return ind_dict
+
 def run(ra, pm, pr):
     (u, p, T, B, E) = z.split()
     Ra.assign(ra)
     Pm.assign(pm)
     Pr.assign(pr)
 
-    # Indices for output depending on Re-S, Re-Rem or S-Rem table
-    if len(args.Pr) == 1 or len(args.Pm) == 1:
-        ind1 = ra
-        ind2 = pr*pm
-    else:
-        ind1 = ra*pr
-        ind2 = pm
+    ind_dict = get_ind_dict(ra, pm, pr)
+    val1, val2 = list(ind_dict.values())
 
     if bc_varying:
         global p_ex
@@ -911,7 +918,7 @@ def run(ra, pm, pr):
 
     if checkpoint:
         try:
-            chk = DumbCheckpoint("dump/"+str(float(ind2))+str(linearisation)+str(testproblem), mode=FILE_READ)
+            chk = DumbCheckpoint("dump/"+str(float(val2))+str(linearisation)+str(testproblem), mode=FILE_READ)
             chk.load(z)
         except Exception as e:
             message(e)
@@ -1024,7 +1031,7 @@ def run(ra, pm, pr):
         }
 
         if output:
-            pvd.write(u, p, T, B, E, time=float(ind1)*float(ind2))
+            pvd.write(u, p, T, B, E, time=float(val1)*float(val2))
 
     message(BLUE % info_dict)
     # Write iteration numbers to file
@@ -1032,7 +1039,7 @@ def run(ra, pm, pr):
         dir = 'results/results'+str(linearisation)+str(testproblem)+'/'
         if not os.path.exists(dir):
             os.mkdir(dir)
-        f = open(dir+str(float(ind1))+str(float(ind2))+'.txt', 'w+')
+        f = open(f"{dir}{list(ind_dict.keys())[0]}_{list(ind_dict.keys())[1]}_{float(val1)}_{float(val2)}.txt", 'w+')
         f.write("({0:2.0f}){1:4.1f}".format(float(info_dict["nonlinear_iter"]), float(info_dict["krylov/nonlin"])))
         f.close()
 
@@ -1041,7 +1048,7 @@ def run(ra, pm, pr):
     # Create Checkpoints of solution
     if not os.path.exists("dump/"):
         os.mkdir("dump/")
-    chk = DumbCheckpoint("dump/"+str(float(ind2))+str(linearisation)+str(testproblem), mode=FILE_CREATE)
+    chk = DumbCheckpoint("dump/"+str(float(val2))+str(linearisation)+str(testproblem), mode=FILE_CREATE)
     chk.store(z)
 
 
@@ -1057,9 +1064,6 @@ for pm in Pms:
                 dir = 'results/results'+str(linearisation)+str(testproblem)+'/'
                 if not os.path.exists(dir):
                     os.mkdir(dir)
-                if len(args.Pr) == 1 or len(args.Pm) == 1:
-                    f = open(dir+str(float(ra))+str(float(pm*pr))+'.txt', 'w+')
-                else:
-                    f = open(dir+str(float(ra*pr))+str(float(pm))+'.txt', 'w+')
+                f = open(f"{dir}{list(ind_dict.keys())[0]}_{list(ind_dict.keys())[1]}_{float(val1)}_{float(val2)}.txt", 'w+')
                 f.write("({0:2.0f}){1:4.1f}".format(0, 0))
                 f.close()
