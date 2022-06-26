@@ -1008,6 +1008,10 @@ def run(ra, pm, pr):
     total_linear_its = 0  # number of total linear iterations
 
     while (float(t) < float(Tf-dt)+1.0e-10):
+        if ntimestep < 10:
+            dt.assign(args.dt/10)
+        else:
+            dt.assign(args.dt)
         t.assign(t+dt)
         if mesh.comm.rank == 0:
             print(BLUE % ("\nSolving for time: %f" % t), flush=True)
@@ -1040,16 +1044,14 @@ def run(ra, pm, pr):
 
         # Do CN in first timestep, after that BDF2
         start = datetime.now()
-        if ntimestep < 10:
+        if ntimestep < 1:
             dt_factor.assign(0.5)
             solver = solver_cn
             solver_cn.solve()
-            dt = args.dt/10
         else:
             dt_factor.assign(2.0/3.0)
             solver = solver_bdf2
             solver_bdf2.solve()
-            dt = args.dt
         end = datetime.now()
 
         # Iteration numbers for this time step
