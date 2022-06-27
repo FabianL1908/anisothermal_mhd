@@ -6,6 +6,10 @@ import numpy as np
 
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("--testproblem", type=str, required=True)
+parser.add_argument("--param1", nargs='+', type=float, default=[])
+parser.add_argument("--param2", nargs='+', type=float, default=[])
+
+
 
 args, _ = parser.parse_known_args()
 testproblem = args.testproblem
@@ -40,6 +44,10 @@ for linearisation in linearisations:
     df = df.T
     df.columns.name = f"{var2}/{var1}"
     df = df.fillna("( 0) -- ")
+    if args.param1:
+        df = df[[str(p) for p in args.param1]]
+    if args.param2:
+        df = df.loc[[str(p) for p in args.param2]]
     print(df)
     print(df.to_latex())
     df.to_csv(os.path.join(mypath, "it_numbers.csv"))
