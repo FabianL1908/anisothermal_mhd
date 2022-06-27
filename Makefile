@@ -56,10 +56,10 @@ picardstat: pre
 	$(exec) $(file_stat) --baseN $(baseN) --k $(k) --nref $(nref) --discr $(discr) --Re $(Res) --Rem $(Rems) --S $(S) --gamma 1000 --gamma2 0 --hierarchy $(hierarchy) --solver-type $(solver_type) --testproblem $(testproblem) --linearisation picard --stab $(output) --checkpoint 2>&1 | tee -a logs/ldcpicard.log
 
 newtontime: pre
-	$(exec) $(file_time) --baseN $(baseN) --k $(k) --nref $(nref) --discr $(discr) --Re $(Res) --Rem $(Rems) --S $(S) --gamma 1000 --gamma2 0 --hierarchy $(hierarchy) --solver-type $(solver_type) --testproblem $(testproblem) --linearisation newton --stab $(output) --dt $(dt) --Tf $(Tf) | tee -a logs/ldcnewton.log
+	$(exec) $(file_time) --baseN $(baseN) --k $(k) --nref $(nref) --discr $(discr) --Ra $(Ras) --Pm 1 --Pr $(Prs) --S 1 --gamma 1000 --gamma2 0 --hierarchy $(hierarchy) --solver-type $(solver_type) --testproblem $(testproblem) --linearisation newton --stab $(output) --dt $(dt) --Tf $(Tf) | tee -a logs/ldcnewton.log
 
 picardtime: pre
-	$(exec) $(file_time) --baseN $(baseN) --k $(k) --nref $(nref) --discr $(discr) --Re $(Res) --Rem $(Rems) --S $(S) --gamma 1000 --gamma2 0 --hierarchy $(hierarchy) --solver-type $(solver_type) --testproblem $(testproblem) --linearisation picard --stab $(output) --dt $(dt) --Tf $(Tf) | tee -a logs/ldcpicard.log
+	$(exec) $(file_time) --baseN $(baseN) --k $(k) --nref $(nref) --discr $(discr) --Ra $(Ras) --Pm 1 --Pr $(Prs) --S 1 --gamma 1000 --gamma2 0 --hierarchy $(hierarchy) --solver-type $(solver_type) --testproblem $(testproblem) --linearisation picard --stab $(output) --dt $(dt) --Tf $(Tf) | tee -a logs/ldcpicard.log
 
 test: pre
 	mpiexec -n 2 python mhd2d_stationary.py --baseN 10 --k 2 --nref 1 --discr bdm --Re 1 --Rem 1 --S 1 --gamma 1000 --gamma2 0 --hierarchy uniform --solver-type fs2by2 --testproblem ldc --linearisation newton --stab
