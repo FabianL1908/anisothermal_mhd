@@ -29,6 +29,8 @@ RB = __import__("linear_eigenvalue")
 # Branch
 comm = COMM_WORLD
 
+COMPUTE_CRITICAL = None
+
 # Construct mono-3d problem
 problem = RB.EVRayleighBenardProblem()
 mesh = problem.mesh(comm=comm)
@@ -46,9 +48,6 @@ opts = PETSc.Options()
 for k in solver_parameters:
     opts[k] = solver_parameters[k]
 
-Ra = 20000
-Ra = 10**5
-Pr = 1.0
 #consts = [Ra, Pr]
 consts = [max(y[0], y[-1]) for x, y in problem.parameter_values().items()]
 
@@ -56,7 +55,7 @@ consts = [max(y[0], y[-1]) for x, y in problem.parameter_values().items()]
 print(consts)
 #solution = io.fetch_solutions(consts, [0])[0]
 solution = Function(Z)
-d = problem.compute_stability(consts, 0, solution)
+d = problem.compute_stability(consts, 0, solution, critical=COMPUTE_CRITICAL)
 io.save_stability(d["stable"], d.get("eigenvalues", []), d.get("eigenfunctions", []), consts, 0)
 # pvd = File("eigenfunctions/eigenfunctions.pvd")
 # for e in d.get("eigenfunctions", []):
@@ -67,3 +66,21 @@ evalsR = np.array([l.real for l in evals])
 eigsPos = evalsR[evalsR>=0]
 print(eigsPos)
 print(len(eigsPos))
+
+pvd_path = "initial_guess/solution/"
+pvd = File(pvd_path + "eigenfuction_critical.pvd")
+
+if COMPUTE_CRITICAL:
+    for i, ra in enumerate(eigsPos[:10]):
+        consts[0] = ra
+        print(consts)
+        d = problem.compute_stability(consts, 0, solution)
+#        import ipdb; ipdb.set_trace()
+        eigenfunction = d.get("eigenfunctions", [])
+        problem.save_pvd(eigenfunction[i], pvd, consts)
+
+    download_path = "laakmann@wolverine:" + os.getcwd()
+    download_pvd_path = os.path.join(download_path, pvd_path) 
+    download_msg = f"scp -r {download_pvd_path}* . ; scp {download_path}/paraview_simple_eigenfunction.py .; /Applications/ParaView-5.10.1.app/Contents/bin/pvpython paraview_simple_eigenfunction.py"
+    print(download_msg)        
+        

@@ -101,7 +101,7 @@ class EVRayleighBenardProblem(RB.RayleighBenardProblem):
         z = Function(Z)
         return z
     
-    def compute_stability(self, params, branchid, z, hint=None):                
+    def compute_stability(self, params, branchid, z, hint=None, critical=None):                
         (Ra, Pr, S, Pm) = params
         
         trial = TrialFunction(self.Z)
@@ -143,8 +143,9 @@ class EVRayleighBenardProblem(RB.RayleighBenardProblem):
         Fsol = -self.residual(z, params, test)
         stabform = derivative(Fsol, z, trial)
         massform = inner(u, v)*dx + inner(T, s)*dx + inner(B, C)*dx #+ inner(E, Ff)*dx
-#        stabform -= Ra*Pr*inner(split(trial)[2]*g, v)*dx 
-#        massform = -Pr*inner(T*g, v)*dx + inner(B,C)*dx
+        if critical:
+            stabform -= Ra*Pr*inner(split(trial)[2]*g, v)*dx 
+            massform = -Pr*inner(T*g, v)*dx# + inner(B,C)*dx
 
         stabbcs = self.boundary_conditions(self.Z, params)
         M = assemble(massform, bcs=stabbcs, mat_type="aij")
@@ -223,7 +224,7 @@ class EVRayleighBenardProblem(RB.RayleighBenardProblem):
              "ksp_max_it": 10,
              "pc_type": "lu",
              "pc_factor_mat_solver_type": "mumps",
-#             "eps_monitor_all": None,
+             "eps_monitor_all": None,
              "eps_converged_reason": None,
              "eps_type": "krylovschur",
              "eps_nev": 20,
