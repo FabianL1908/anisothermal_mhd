@@ -13,12 +13,33 @@ import argparse
 import numpy
 import sys
 import os
+from mpi4py import MPI
 
 import petsc4py
 petsc4py.PETSc.Sys.popErrorHandler()
 
 # Parallel distribution parameters
 distribution_parameters = {"partition": True, "overlap_type": (DistributedMeshOverlapType.VERTEX, 2)}
+
+# Define two-dimensional versions of cross and curl operators
+def scross(x, y):
+    return x[0]*y[1] - x[1]*y[0]
+
+def vcross(x, y):
+    return as_vector([x[1]*y, -x[0]*y])
+
+def scurl(x):
+    return x[1].dx(0) - x[0].dx(1)
+
+def vcurl(x):
+    return as_vector([x.dx(1), -x.dx(0)])
+
+def acurl(x):
+    return as_vector([
+                     x[2].dx(1),
+                     -x[2].dx(0),
+                     x[1].dx(0) - x[0].dx(1)
+                     ])
 
 # Definition of Burman Stabilisation term to avoid oscillations in velocity u
 def BurmanStab(B, C, wind, stab_weight, mesh):
@@ -31,7 +52,7 @@ def BurmanStab(B, C, wind, stab_weight, mesh):
 
 
 # Definition of outer Schur complement for the order ((E,B),(u,p)), which is Navier-Stokes block + Lorentz force
-class SchurPC(AuxiliaryOperatorPC):
+class SchurPCup(AuxiliaryOperatorPC):
     def form(self, pc, V, U):
         mesh = V.function_space().mesh()
         [u, p] = split(U)
@@ -44,21 +65,31 @@ class SchurPC(AuxiliaryOperatorPC):
 
         eps = lambda x: sym(grad(x))
 
-        # Weak form of NS + Lorentz force
+        # Factor for Schur complement approximation as chosen in doi.org/10.1137/16M1074084
+        if linearisation == "mdp":
+            alpha = 1
+        elif linearisation == "picard":
+            alpha = dt/(dt+Rem*(1/(baseN*nref))**2)
+        elif linearisation == "newton":
+            norm_un = sqrt(assemble(inner(u_n, u_n)*dx))
+            hh = 1/(baseN*nref)
+            alpha = dt/(dt + Rem*hh**2 + Rem*hh*norm_un*dt)
+
+        # Weak form of NS + (scaled) Lorentz force
         A = (
-                2/Re * inner(eps(u), eps(v))*dx
+              + 2/Re * inner(eps(u), eps(v))*dx
               + gamma * inner(div(u), div(v)) * dx
               - inner(p, div(v)) * dx
               - inner(div(u), q) * dx
-              + S * inner(cross(B_n, cross(u, B_n)), v) * dx
-             )
+              + alpha*S * inner(vcross(B_n, scross(u, B_n)), v) * dx
+        )
 
         # For H(div)-L2 discretization we have to add a DG-formulation of the advection and diffusion term
         if discr in ["rt", "bdm"]:
             h = CellVolume(mesh)/FacetArea(mesh)
-            uflux_int = 0.5*(dot(u, n) + theta*abs(dot(u, n)))*u
-            uflux_ext_1 = 0.5*(inner(u, n) + theta*abs(inner(u, n)))*u
-            uflux_ext_2 = 0.5*(inner(u, n) - theta*abs(inner(u, n)))*u_ex
+            uflux_int = 0.5*(dot(u, n) + abs(dot(u, n)))*u
+            uflux_ext_1 = 0.5*(inner(u, n) + abs(inner(u, n)))*u
+            uflux_ext_2 = 0.5*(inner(u, n) - abs(inner(u, n)))*u_ex
 
             A_DG = (
                  - 1/Re * inner(avg(2*sym(grad(u))), 2*avg(outer(v, n))) * dS
@@ -68,7 +99,7 @@ class SchurPC(AuxiliaryOperatorPC):
                  - inner(outer(u-u_ex, n), 2/Re*sym(grad(v))) * ds(bcs_ids_apply)
                  + 1/Re*(sigma/h)*inner(v, u-u_ex) * ds(bcs_ids_apply)
                  - advect * dot(u, div(outer(v, u))) * dx
-                 + advect * dot(v('+')-v('-'), uflux_int('+')-uflux_int('-'))*dS
+                 + advect * dot(v('+')-v('-'), uflux_int('+')-uflux_int('-')) * dS
                  + advect * dot(v, uflux_ext_1) * ds
                  + advect * dot(v, uflux_ext_2) * ds(bcs_ids_apply)
             )
@@ -96,9 +127,8 @@ class SchurPC(AuxiliaryOperatorPC):
                PressureFixBC(V.function_space().sub(1), 0, 1),
                ]
 
+        A = inner(u, v) * dx + dt_factor*dt*A
         return (A, bcs)
-
-# Definition of outer Schur complement for the order ((u,p),(B,E))
 class SchurPCBE(AuxiliaryOperatorPC):
     def form(self, pc, V, U):
         [B, E] = split(U)
@@ -107,19 +137,21 @@ class SchurPCBE(AuxiliaryOperatorPC):
         [u_n, p_n, T_n, B_n, E_n] = split(state)
 
         A = (
-             + inner(E, Ff) * dx
-             + inner(cross(u_n, B), Ff) * dx
-             - 1/Pm * inner(B, curl(Ff)) * dx
-             + inner(curl(E), C) * dx
-             + 1/Pm * inner(div(B), div(C)) * dx
+             + 1*inner(E, Ff) * dx
+             + inner(scross(u_n, B), Ff) * dx
+             - Pr/Pm * inner(B, vcurl(Ff)) * dx
+             + inner(vcurl(E), C) * dx
+             + Pr/Pm * inner(div(B), div(C)) * dx
              + gamma2 * inner(div(B), div(C)) * dx
-        )
+                      )
 
         bcs = [DirichletBC(V.function_space().sub(0), 0, "on_boundary"),
                DirichletBC(V.function_space().sub(1), 0, "on_boundary"),
                ]
 
+        A = inner(B, C) * dx + dt_factor*dt*A
         return (A, bcs)
+
 
 
 # We fix the pressure at one vertex on every level
@@ -155,6 +187,8 @@ class PressureFixBC(DirichletBC):
 
         if len(self.nodes) > 0:
             print("Fixing nodes %s" % self.nodes)
+        # else:
+        #    print("Not fixing any nodes")
         import sys
         sys.stdout.flush()
 
@@ -163,6 +197,10 @@ class PressureFixBC(DirichletBC):
 
 # Increase buffer size for MUMPS solver
 ICNTL_14 = 5000
+tele_reduc_fac = int(MPI.COMM_WORLD.size/4)
+if tele_reduc_fac < 1:
+    tele_reduc_fac = 1
+
 
 # LU solver
 lu = {
@@ -191,10 +229,11 @@ nsfsstar = {
     "pc_fieldsplit_schur_factorization_type": "upper",
     "pc_fieldsplit_schur_precondition": "user",
     "fieldsplit_0": {
-         "ksp_type": "gmres",
+         "ksp_type": "fgmres",
          "ksp_max_it": 1,
          "ksp_norm_type": "unpreconditioned",
          "pc_type": "mg",
+         #"pc_factor_mat_solver_type": "mumps",
          "pc_mg_cycle_type": "v",
          "pc_mg_type": "full",
          "mg_levels_ksp_type": "fgmres",
@@ -203,12 +242,17 @@ nsfsstar = {
          "mg_levels_ksp_norm_type": "unpreconditioned",
          "mg_levels_pc_type": "python",
          "mg_levels_pc_python_type": "firedrake.ASMStarPC",
+#         "mg_levels_pc_star_construct_dim": 1,
          "mg_levels_pc_star_backend": "tinyasm",
-         # "mg_levels_pc_star_construct_dim": 0,
-         # "mg_levels_pc_star_sub_sub_ksp_type": "preonly",
-         # "mg_levels_pc_star_sub_sub_pc_type": "lu",
-         # "mg_levels_pc_star_sub_sub_pc_factor_mat_solver_type": "umfpack",
-         "mg_coarse_ksp_type": "richardson",
+#         "mg_levels_pc_python_type": "firedrake.PatchPC",
+#         "mg_levels_patch_pc_patch_save_operators": True,
+#         "mg_levels_patch_pc_patch_partition_of_unity": False,
+#         "mg_levels_patch_pc_patch_sub_mat_type": "seqaij",
+#         "mg_levels_patch_pc_patch_construct_dim": 0,
+#         "mg_levels_patch_pc_patch_construct_type": "star",
+#         "mg_levels_patch_sub_ksp_type": "preonly",
+#         "mg_levels_patch_sub_pc_type": "lu",
+#         "mg_levels_patch_sub_pc_factor_mat_solver_type": "umfpack",         "mg_coarse_ksp_type": "richardson",
          "mg_coarse_ksp_max_it": 1,
          "mg_coarse_ksp_norm_type": "unpreconditioned",
          "mg_coarse_pc_type": "python",
@@ -224,10 +268,17 @@ nsfsstar = {
          }
     },
     "fieldsplit_1": {
-        "ksp_type": "preonly",
-        "pc_type": "python",
-        "pc_python_type": "alfi.solver.DGMassInv"
-    },
+            "ksp_type": "preonly",
+            "pc_type": "python",
+            "pc_python_type": "alfi.solver.DGMassInv",      
+           #"ksp_type": "gmres",
+           #"ksp_max_it": 2,
+           #"pc_type": "python",
+           #"pc_python_type": "__main__.SchurPCT",
+           #"aux_pc_type": "lu",
+           #"aux_pc_factor_mat_solver_type": "mumps",
+           #"aux_mat_mumps_icntl_14": ICNTL_14,
+     },
 }
 
 # Monolithic macrostar solver for (E,B)-block
@@ -241,11 +292,9 @@ nsfsmacrostar = {
     "pc_fieldsplit_0_fields": "0,2",
     "pc_fieldsplit_1_fields": "1",
     "pc_fieldsplit_schur_factorization_type": "full",
-    "pc_fieldsplit_schur_precondition": "user",
     "fieldsplit_0": {
-           "ksp_type": "gmres",
+           "ksp_type": "fgmres",
            "ksp_max_it": 1,
-           "ksp_norm_type": "unpreconditioned",
            "pc_type": "mg",
            "pc_mg_cycle_type": "v",
            "pc_mg_type": "full",
@@ -254,6 +303,8 @@ nsfsmacrostar = {
            "mg_levels_ksp_max_it": 6,
            "mg_levels_ksp_norm_type": "unpreconditioned",
            "mg_levels_pc_type": "python",
+#           "mg_levels_pc_python_type": "firedrake.ASMStarPC",
+#           "mg_levels_pc_star_backend": "tinyasm",
            "mg_levels_pc_python_type": "firedrake.PatchPC",
            "mg_levels_patch_pc_patch_save_operators": True,
            "mg_levels_patch_pc_patch_partition_of_unity": False,
@@ -308,17 +359,15 @@ outerschurstar = {
          "mg_levels_ksp_max_it": 6,
          "mg_levels_ksp_norm_type": "unpreconditioned",
          "mg_levels_pc_type": "python",
-         "mg_levels_pc_python_type": "firedrake.ASMStarPC",
-         "mg_levels_pc_star_backend": "tinyasm",
-#         "mg_levels_pc_python_type": "firedrake.PatchPC",
-#         "mg_levels_patch_pc_patch_save_operators": True,
-#         "mg_levels_patch_pc_patch_partition_of_unity": False,
-#         "mg_levels_patch_pc_patch_sub_mat_type": "seqaij",
-#         "mg_levels_patch_pc_patch_construct_dim": 0,
-#         "mg_levels_patch_pc_patch_construct_type": "star",
-#         "mg_levels_patch_sub_ksp_type": "preonly",
-#         "mg_levels_patch_sub_pc_type": "lu",
-#         "mg_levels_patch_sub_pc_factor_mat_solver_type": "umfpack",
+         "mg_levels_pc_python_type": "firedrake.PatchPC",
+         "mg_levels_patch_pc_patch_save_operators": True,
+         "mg_levels_patch_pc_patch_partition_of_unity": False,
+         "mg_levels_patch_pc_patch_sub_mat_type": "seqaij",
+         "mg_levels_patch_pc_patch_construct_dim": 0,
+         "mg_levels_patch_pc_patch_construct_type": "star",
+         "mg_levels_patch_sub_ksp_type": "preonly",
+         "mg_levels_patch_sub_pc_type": "lu",
+         "mg_levels_patch_sub_pc_factor_mat_solver_type": "umfpack",
          "mg_coarse_ksp_type": "richardson",
          "mg_coarse_ksp_max_it": 1,
          "mg_coarse_ksp_norm_type": "unpreconditioned",
@@ -398,11 +447,11 @@ outerschurlu = {
 # Main solver
 fs3by2 = {
     "snes_type": "newtonls",
-    "snes_max_it": 10,
+    "snes_max_it": 25,
     "snes_linesearch_type": "basic",
     "snes_linesearch_maxstep": 1.0,
-    "snes_rtol": 1.0e-9,
-    "snes_atol": 2.5e-6,
+    "snes_rtol": 1.0e-10,
+    "snes_atol": 1.0e-6,
     "snes_monitor": None,
     "ksp_type": "fgmres",
     "ksp_max_it": 75,
@@ -413,7 +462,7 @@ fs3by2 = {
     "mat_type": "aij",
     "pc_type": "fieldsplit",
     "pc_fieldsplit_type": "schur",
-    "pc_fieldsplit_schur_factorization_type": "upper",
+    "pc_fieldsplit_schur_factorization_type": "upper",   
     "pc_fieldsplit_0_fields": "0,1,2",
     "pc_fieldsplit_1_fields": "3,4",
 }
@@ -497,70 +546,77 @@ fs3by2lu = {
 
 solvers = {"lu": lu, "fs3by2": fs3by2, "fs3by2nslu": fs3by2nslu, "fs3by2slu": fs3by2slu, "fs3by2lu": fs3by2lu}
 
-# Definition of problem parameters
+# Definition of problem paramters
 parser = argparse.ArgumentParser(add_help=False)
-parser.add_argument("--baseN", type=int, default=10)
-parser.add_argument("--k", type=int, default=3)
-parser.add_argument("--nref", type=int, default=1)
+parser.add_argument("--baseN", type=int, default=20)
+parser.add_argument("--k", type=int, default=2)
+parser.add_argument("--nref", type=int, default=2)
 parser.add_argument("--Ra", nargs='+', type=float, default=[1])
-parser.add_argument("--Pm", nargs='+', type=float, default=[1])
+parser.add_argument("--S", nargs='+', type=float, default=[1])
 parser.add_argument("--Pr", nargs='+', type=float, default=[1])
+parser.add_argument("--Pm", nargs='+', type=float, default=[1])
 parser.add_argument("--gamma", type=float, default=10000)
 parser.add_argument("--gamma2", type=float, default=0)
 parser.add_argument("--advect", type=float, default=1)
+parser.add_argument("--dt", type=float, required=True)
+parser.add_argument("--Tf", type=float, default=1)
 parser.add_argument("--hierarchy", choices=["bary", "uniform"], default="bary")
-parser.add_argument("--solver-type", choices=list(solvers.keys()), default="lu")
-parser.add_argument("--testproblem", choices=["hc", "3dgenerator", "smooth"], default="smooth")
 parser.add_argument("--discr", choices=["rt", "bdm", "cg"], required=True)
+parser.add_argument("--solver-type", choices=list(solvers.keys()), default="lu")
+parser.add_argument("--testproblem", choices=["cooling_channel","hc", "smooth", "ldc2"], default="Wathen")
 parser.add_argument("--linearisation", choices=["picard", "mdp", "newton"], required=True)
 parser.add_argument("--stab", default=False, action="store_true")
 parser.add_argument("--checkpoint", default=False, action="store_true")
 parser.add_argument("--output", default=False, action="store_true")
+parser.add_argument("--alternative-bcs", default=False, action="store_true")
 
 args, _ = parser.parse_known_args()
 baseN = args.baseN
 k = args.k
 nref = args.nref
 Ra = Constant(args.Ra[0])
-Pm = Constant(args.Pm[0])
 Pr = Constant(args.Pr[0])
+Pm = Constant(args.Pm[0])
 gamma = Constant(args.gamma)
 gamma2 = Constant(args.gamma2)
+advect = Constant(args.advect)
+dt = Constant(args.dt)
+Tf = Constant(args.Tf)
 hierarchy = args.hierarchy
+discr = args.discr
 solver_type = args.solver_type
 testproblem = args.testproblem
-gamma2 = Constant(args.gamma2)
-advect = Constant(args.advect)
 linearisation = args.linearisation
-discr = args.discr
 stab = args.stab
 checkpoint = args.checkpoint
 output = args.output
+alternative_bcs = args.alternative_bcs
+S = Constant(args.S[0])
+#S = Pm
 
 #Re = Constant(1)
+#Re = Constant(100)
 #Rem = Constant(1)
-S = Constant(1)
-
 
 # Stabilisation weight for BurmanStabilisation
 stab_weight = Constant(3e-3)
 
 if len(args.Ra) != 1 and len(args.Pm) != 1 and len(args.Pr) != 1:
-    raise ValueError("Ra, Pm and Pr cannot all contain more than one element at the same time")
+    raise ValueError("Re, Pm and S cannot all contain more than one element at the same time")
 
 if discr == "cg" and hierarchy != "bary":
-    raise ValueError("SV is only stable on barycentric refined grids")
+    raise ValueError("Scott-Vogelius is only stable on barycentric refined grids")
 
-if k < 3 and hierarchy == "bary":
-    raise ValueError("Scott Vogelius is not stable for k<3")
 
-# Define the base Mesh for the different problems
-if testproblem == "3dgenerator":
-    base = BoxMesh(5*baseN, baseN, baseN, 5, 1, 1, distribution_parameters=distribution_parameters)
-else:
-    base = UnitCubeMesh(baseN, baseN, baseN, distribution_parameters=distribution_parameters)
+base = UnitSquareMesh(baseN, baseN, diagonal="crossed", distribution_parameters=distribution_parameters)
+
+if testproblem == "cooling_channel":
+    base = RectangleMesh(5*baseN, baseN, 10, 2, diagonal="crossed", distribution_parameters=distribution_parameters)
+    
 
 # Callbacks called before and after mesh refinement
+
+
 def before(dm, i):
     for p in range(*dm.getHeightStratum(1)):
         dm.setLabelValue("prolongation", p, i+1)
@@ -584,23 +640,24 @@ elif hierarchy == "uniform":
 else:
     raise NotImplementedError("Only know bary, uniformbary and uniform for the hierarchy.")
 
-# Change mesh from [0,1]^3 to [-0.5,0.5]^3
-if testproblem != "3dgenerator":
+if testproblem == "cooling_channel":
+    for m in mh:
+        m.coordinates.dat.data[:, 1] -= 1.0
+    mesh = mh[-1]
+else:
+# Change mesh from [0,1]^2 to [-0.5,0.5]^2
     for m in mh:
         m.coordinates.dat.data[:, 0] -= 0.5
         m.coordinates.dat.data[:, 1] -= 0.5
-        m.coordinates.dat.data[:, 2] -= 0.5
-mesh = mh[-1]
+    mesh = mh[-1]
+
 
 area = assemble(Constant(1, domain=mh[0])*dx)
-
 
 def message(msg):
     if mesh.comm.rank == 0:
         warning(msg)
 
-
-# Define mixed function spaces
 if discr == "rt":
     Vel = FiniteElement("N1div", mesh.ufl_cell(), k, variant="integral")
     V = FunctionSpace(mesh, Vel)
@@ -610,151 +667,92 @@ elif discr == "bdm":
 elif discr == "cg":
     V = VectorFunctionSpace(mesh, "CG", k)
 Q = FunctionSpace(mesh, "DG", k-1)  # p
-Rel = FiniteElement("N1curl", mesh.ufl_cell(), k, variant="integral")
-R = FunctionSpace(mesh, Rel)  # E
+R = FunctionSpace(mesh, "CG", k)  # E
 Wel = FiniteElement("N1div", mesh.ufl_cell(), k, variant="integral")
 W = FunctionSpace(mesh, Wel)
 TT = FunctionSpace(mesh, "CG", k)
 Z = MixedFunctionSpace([V, Q, TT, W, R])
 
-z = Function(Z)
-(u, p, T, B, E) = split(z)
-(v, q, s, C, Ff) = split(TestFunction(Z))
-
 # used for BurmanStabilisation
 z_last_u = Function(V)
+# time variable
+t = Constant(0)
 
-# For continuation we might want to start from checkpoint
-if checkpoint:
-    try:
-        if len(args.Pr) == 1 or len(args.Ra) == 1:
-            chk = DumbCheckpoint("dump/"+str(float(S*Pm))+str(linearisation)+str(testproblem), mode=FILE_READ)
-        else:
-            chk = DumbCheckpoint("dump/"+str(float(Pm))+str(linearisation)+str(testproblem), mode=FILE_READ)
-        chk.load(z)
-    except Exception as e:
-        message(e)
-    (u_, p_, T_, B_, E_) = z.split()
-    z_last_u.assign(u_)
-
-(x, y, zz) = SpatialCoordinate(Z.mesh())
+(x, y) = SpatialCoordinate(Z.mesh())
 n = FacetNormal(mesh)
+tangential = as_vector([n[1], -n[0]])
+g = as_vector([0, 1])
 
-eps = lambda x: sym(grad(x))
-g = as_vector([0,1,0])
-
-# Base weak form of problem
-F = (
-      2*Pr * inner(eps(u), eps(v))*dx
-    # + advect * inner(dot(grad(u), u), v) * dx
-    + gamma * inner(div(u), div(v)) * dx
-    + S * inner(cross(B, E), v) * dx
-    + S * inner(cross(B, cross(u, B)), v) * dx
-    - inner(p, div(v)) * dx
-    - inner(div(u), q) * dx
-    + inner(E, Ff) * dx
-    + inner(cross(u, B), Ff) * dx
-    - Pr/Pm * inner(B, curl(Ff)) * dx
-    + inner(curl(E), C) * dx
-    + Pr/Pm * inner(div(B), div(C)) * dx
-    - Ra*Pr * inner(g*T , v) * dx
-    + inner(grad(T), grad(s)) * dx
-    + inner(dot(u, grad(T)), s) * dx
-)
-
-# Compute RHS for Method of Manufactured Solution (MMS)
-
-
-def compute_rhs(u_ex, B_ex, T_ex, p_ex, E_ex):
-    E_ex_ = interpolate(E_ex, R)
-    f1 = (-2*Pr * div(eps(u_ex)) + advect * dot(grad(u_ex), u_ex) - gamma * grad(div(u_ex))
-          + grad(p_ex) + S * cross(B_ex, (E_ex + cross(u_ex, B_ex))) - Ra*Pr * g*T_ex)
-    f2 = + curl(E_ex_) - Pr/Pm * grad(div(B_ex))
-    f3 = -Pr/Pm * curl(B_ex) + E_ex + cross(u_ex, B_ex)
-    f4 = -div(grad(T_ex)) + dot(u_ex, grad(T_ex))
-    return (f1, f2, f3, f4)
-
-if testproblem == "smooth":
-    u_ex = as_vector([cos(zz), sin(x), sin(y)]) 
-    B_ex = as_vector([sin(y), cos(zz), sin(x)])
-    T_ex = cos(x)
-    p_ex = sin(x)
-    E_ex = as_vector([sin(x)*cos(x), sin(y), cos(x)]) # 1.0e-13*x
-    
-    (f1, f2, f3, f4) = compute_rhs(u_ex, B_ex, T_ex, p_ex, E_ex)
-    rhs = True  # because RHS is zero
-
-    bcs = [DirichletBC(Z.sub(0), u_ex, "on_boundary"),
-           DirichletBC(Z.sub(2), T_ex, "on_boundary"),
-           DirichletBC(Z.sub(3), B_ex, "on_boundary"),
-           DirichletBC(Z.sub(4), E_ex, "on_boundary"),
-           PressureFixBC(Z.sub(1), 0, 1)]
-
-    # Do we know what the exact solution of the problem is?
-    solution_known = True
-
-    # Do the boundary conditions depend on parameter thats change during continuation
-    bc_varying = False
-
-    # On what ids of the boundary do we want to apply the boundary conditions
-    # This is needed for DG-Form of H(div)-L2 formulation
-    bcs_ids_apply = (1, 2, 3, 4, 5, 6)
-    bcs_ids_dont_apply = None
-
-elif testproblem == "3dgenerator":
-    # Hartmann number
-    Ha = sqrt(S*Rem*Re)
-
-    # Problem parameter
-    B0 = Constant(1.0)
-    x_on = Constant(2.0)
-    x_off = Constant(2.5)
-    delta = Constant(0.1)
-
-    B_z_gen = (B0/2)*(tanh((x-x_on)/delta) - tanh((x-x_off)/delta))
-
-    # *_ex are just defined for boundary conditions. We don't know exact solution
-    u_ex = Constant((1, 0, 0), domain=mesh)
-    B_ex = as_vector([Constant(0, domain=mesh), Constant(0, domain=mesh), B_z_gen])
-    E_ex = 1/Rem * curl(B_ex)
+if testproblem == "ldc":
+    # example taken from https://doi.org/10.1016/j.jcp.2016.04.019
+    u_ex = Constant((1, 0), domain=mesh)
+    B_ex = Constant((0, 1), domain=mesh)
+    B_ex = interpolate(B_ex, W)
+    E_ex = Constant(0, domain=mesh)
+    E_ex = interpolate(E_ex, R)
     p_ex = Constant(0, domain=mesh)
-    T_ex = sin(x)
-
-    # Inflow BCs for u at x=0, outflow at x=1, no-slip on 4 sides
 
     # On what ids of the boundary do we want to apply the boundary conditions
     # This is needed for DG-Form of H(div)-L2 formulation
-    bcs_ids_apply = (1)
-    bcs_ids_dont_apply = (3, 4, 5, 6)
+    bcs_ids_apply = 4
+    bcs_ids_dont_apply = (1, 2, 3)
 
-    bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),
-           DirichletBC(Z.sub(0), Constant((0., 0., 0.)), bcs_ids_dont_apply),
-           DirichletBC(Z.sub(2), T_ex, "on_boundary"),
-           DirichletBC(Z.sub(3), B_ex, "on_boundary"),
-           DirichletBC(Z.sub(4), 0, "on_boundary"),
+    bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),  # 4 == upper boundary (y==1)
+           DirichletBC(Z.sub(0), 0, bcs_ids_dont_apply),
+           DirichletBC(Z.sub(2), B_ex, "on_boundary"),
+           DirichletBC(Z.sub(3), 0, "on_boundary"),
            PressureFixBC(Z.sub(1), 0, 1)]
 
-    rhs = None  # because rhs is zero for this problem
+    rhs = None
 
     # Do we know what the exact solution of the problem is?
     solution_known = False
 
-    # Do the boundary conditions depend on parameter thats change during continuation
-    bc_varying = True
-
+    # Do the boundary conditions depend on parameters
+    bc_varying = False
 
 elif testproblem == "hc":
-    # example taken from https://doi.org/10.1016/j.jcp.2016.04.019
-    u_ex = Constant((0, 0, 0), domain=mesh)
-    B_ex = Constant((0, 1, 0), domain=mesh)
+    u_ex = Constant((0, 0), domain=mesh)
+    B_ex = Constant((0, 1), domain=mesh)
+    p_ex = Constant(0, domain=mesh)
     B_ex = project(B_ex, W)
+    E_ex = Constant(0, domain=mesh)
+    T_ex = -(x-0.5)
 
-    bcs_ids_apply = (1, 2, 3, 4, 5, 6)
-    bcs_ids_dont_apply = None
-
+    bcs_ids_apply = (1, 2, 3, 4)
     bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),  # 4 == upper boundary (y==1)
            DirichletBC(Z.sub(2), 0, 2),
            DirichletBC(Z.sub(2), 1, 1),
+           DirichletBC(Z.sub(3), B_ex, "on_boundary"),
+           DirichletBC(Z.sub(4), 0, "on_boundary"),
+           PressureFixBC(Z.sub(1), 0, 1)]
+
+    rhs = None
+    solution_known = False
+    bc_varying = False
+    bcs_ids_dont_apply = None
+
+elif testproblem == "cooling_channel":
+    u_ex = Constant((1, 0), domain=mesh)
+    B_ex = Constant((0, 1), domain=mesh)
+    B_ex = project(B_ex, W)
+    p_ex = Constant(0, domain=mesh)
+    E_ex = Constant(0, domain=mesh)
+#    u_ex = as_vector([(y-1)*(y+1), 0]) 
+#    bcs_ids_apply = (1, 2, 3, 4)
+    bcs_ids_apply = (1)
+    bcs_ids_dont_apply = (3, 4)
+    x1 = 1
+    x2 = 2
+    T_hot = 1.0
+    T_bc = conditional(x>x2, 0, conditional(x<x1, T_hot, T_hot*(x-x2)/(x1-x2)))
+    T_ex = T_bc
+    
+    bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),  # 4 == upper boundary (y==1)
+           DirichletBC(Z.sub(0), 0, bcs_ids_dont_apply),
+           DirichletBC(Z.sub(2), T_hot, 1),
+           DirichletBC(Z.sub(2), T_bc, 3),
+           DirichletBC(Z.sub(2), T_bc, 4),
            DirichletBC(Z.sub(3), B_ex, "on_boundary"),
            DirichletBC(Z.sub(4), 0, "on_boundary"),
            PressureFixBC(Z.sub(1), 0, 1)]
@@ -762,112 +760,202 @@ elif testproblem == "hc":
     solution_known = False
     bc_varying = False
 
-if solution_known:
-    u_ex_ = interpolate(u_ex, V)
-    B_ex_ = interpolate(B_ex, W)
-    T_ex_ = interpolate(T_ex, TT)
-    p_ex_ = interpolate(p_ex, Q)
-    E_ex_ = interpolate(E_ex, R)
+# Cell diameter used in DG formulation
+h = CellVolume(mesh)/FacetArea(mesh)
+# Penalty parameter used in DG formulation
+sigma = Constant(10) * Z.sub(0).ufl_element().degree()**2
 
-# Add Burman Stabilisation
-if stab:
-    initial = interpolate(as_vector([sin(y), x, x]), V)
-    z_last_u.assign(initial)
-    stabilisation = BurmanStabilisation(Z.sub(0), state=z_last_u, h=FacetArea(mesh), weight=stab_weight)
-    stabilisation_form_u = stabilisation.form(u, v)
-    F += (advect * stabilisation_form_u)
+theta = Constant(1)
 
-# For H(div)-L2 discretization we have to add a DG-formulation of the advection and diffusion term
-if discr in ["rt", "bdm"]:
-    h = CellVolume(mesh)/FacetArea(mesh)
-    sigma = Constant(1) * Z.sub(0).ufl_element().degree()**2  # penalty term
-    theta = Constant(1)  # theta=1 means upwind discretization of nonlinear advection term
-    uflux_int = 0.5*(dot(u, n) + theta*abs(dot(u, n)))*u
-    uflux_ext_1 = 0.5*(inner(u, n) + theta*abs(inner(u, n)))*u
-    uflux_ext_2 = 0.5*(inner(u, n) - theta*abs(inner(u, n)))*u_ex
-
-    F_DG = (
-         - Pr * inner(avg(2*sym(grad(u))), 2*avg(outer(v, n))) * dS
-         - Pr * inner(avg(2*sym(grad(v))), 2*avg(outer(u, n))) * dS
-         + Pr * sigma/avg(h) * inner(2*avg(outer(u, n)), 2*avg(outer(v, n))) * dS
-         - inner(outer(v, n), 2*Pr*sym(grad(u))) * ds
-         - inner(outer(u-u_ex, n), 2*Pr*sym(grad(v))) * ds(bcs_ids_apply)
-         + Pr*(sigma/h)*inner(v, u-u_ex) * ds(bcs_ids_apply)
-         - advect * dot(u, div(outer(v, u))) * dx
-         + advect * dot(v('+')-v('-'), uflux_int('+')-uflux_int('-')) * dS
-         + advect * dot(v, uflux_ext_1) * ds
-         + advect * dot(v, uflux_ext_2) * ds(bcs_ids_apply)
+# Definition of weak form
+# timelevel = 0 is time we solve for; timelevel = 1 means previous timestep
+def form(z, test_z, Z, timelevel):
+    (u, p, T, B, E) = split(z)
+    (v, q, s, C, Ff) = split(test_z)
+    eps = lambda x: sym(grad(x))
+    F = (
+          2 * Pr * inner(eps(u), eps(v))*dx
+        # + advect * inner(dot(grad(u), u), v) * dx
+        + gamma * inner(div(u), div(v)) * dx
+        + S * inner(vcross(B, E), v) * dx
+        + S * inner(vcross(B, scross(u, B)), v) * dx
+        - inner(p, div(v)) * dx
+        - inner(div(u), q) * dx
+        + inner(E, Ff) * dx
+        + inner(scross(u, B), Ff) * dx
+        - Pr/Pm * inner(B, vcurl(Ff)) * dx
+        + inner(vcurl(E), C) * dx
+        + Pr/Pm * inner(div(B), div(C)) * dx
+        - Ra * Pr * inner(g*T , v) * dx
+        + inner(grad(T), grad(s)) * dx
+        + inner(dot(u, grad(T)), s) * dx
     )
 
-    if bcs_ids_dont_apply is not None:
-        F_DG += (
-            - inner(outer(u, n), 2*Pr*sym(grad(v))) * ds(bcs_ids_dont_apply)
-            + Pr*(sigma/h)*inner(v, u) * ds(bcs_ids_dont_apply)
-           )
+    if discr in ["rt", "bdm"]:
+        uflux_int = 0.5*(dot(u, n) + theta*abs(dot(u, n))) * u
+        uflux_ext_1 = 0.5*(inner(u, n) + theta*abs(inner(u, n))) * u
+        uflux_ext_2 = 0.5*(inner(u, n) - theta*abs(inner(u, n))) * u_ex
 
-    F += F_DG
+        F_DG = (
+             - Pr * inner(avg(2*sym(grad(u))), 2*avg(outer(v, n))) * dS
+             - Pr * inner(avg(2*sym(grad(v))), 2*avg(outer(u, n))) * dS
+             + Pr * sigma/avg(h) * inner(2*avg(outer(u, n)), 2*avg(outer(v, n))) * dS
+             - inner(outer(v, n), 2*Pr*sym(grad(u))) * ds
+             - advect * dot(u, div(outer(v, u))) * dx
+             + advect * dot(v('+')-v('-'), uflux_int('+')-uflux_int('-')) * dS
+             + advect * dot(v, uflux_ext_1) * ds
+        )
 
-elif discr == "cg":
-    F += advect * inner(dot(grad(u), u), v) * dx
-
-if rhs is not None:
-    F -= inner(f1, v) * dx + inner(f3, Ff) * dx + inner(f2, C) * dx + inner(f4, s) * dx
-
-# Definition of the three different linearizations
-w = TrialFunction(Z)
-[w_u, w_p, w_T, w_B, w_E] = split(w)
-
-J_newton = ufl.algorithms.expand_derivatives(derivative(F, z, w))
-
-if linearisation == "newton":
-    J = J_newton
-
-elif linearisation == "mdp":
-    J_mdp = (
-          J_newton
-        - inner(cross(w_u, B), Ff) * dx  # G
+        # Only add boundary conditions on timelevel we solve for
+        # Otherwise we run into problems if initial guess doesn't fullfill right boundary conditions
+        if timelevel == 0:
+            F_DG += (
+                 - inner(outer(u-u_ex, n), 2*Pr*sym(grad(v))) * ds(bcs_ids_apply)
+                 + Pr*(sigma/h)*inner(v, u-u_ex) * ds(bcs_ids_apply)
+                 + advect * dot(v, uflux_ext_2) * ds(bcs_ids_apply)
             )
-    J = J_mdp
 
-elif linearisation == "picard":
-    J_picard = (
-          J_newton
-        - S * inner(cross(w_B, E), v) * dx  # J_tilde
-        - S * inner(cross(w_B, cross(u, B)), v) * dx  # D_1_tilde
-        - S * inner(cross(B, cross(u, w_B)), v) * dx  # D_2_tilde
-        - inner(cross(u, w_B), Ff) * dx  # G_tilde
-            )
-    J = J_picard
+            if bcs_ids_dont_apply is not None:
+                F_DG += (
+                    - inner(outer(u, n), 2*Pr*sym(grad(v))) * ds(bcs_ids_dont_apply)
+                    + Pr*(sigma/h)*inner(v, u) * ds(bcs_ids_dont_apply)
+                   )
 
-else:
-    raise ValueError("only know newton, mdp and picard as linearisation method")
+        F += F_DG
 
-problem = NonlinearVariationalProblem(F, z, bcs, J=J)
+    elif discr == "cg":
+        F += advect * inner(dot(grad(u), u), v) * dx
 
-appctx = {"Ra": Ra, "gamma": gamma, "nu": 1/Ra, "Pm": Pm, "gamma2": gamma2}
+    return F
+
+def J_form(F, z, test_z):
+    (u, p, T, B, E) = split(z)
+    (v, q, s, C, Ff) = split(test_z)
+    w = TrialFunction(Z)
+    [w_u, w_p, w_T, w_B, w_E] = split(w)
+
+    J_newton = ufl.algorithms.expand_derivatives(derivative(F, z, w))
+
+    if linearisation == "newton":
+        J = J_newton
+
+    elif linearisation == "mdp":
+        J_mdp = (
+              J_newton
+            - dt_factor * dt * inner(scross(w_u, B), Ff) * dx  # G
+                    )
+        J = J_mdp
+
+    elif linearisation == "picard":
+        J_picard = (
+              J_newton
+            - dt_factor * dt * S * inner(vcross(w_B, E), v) * dx  # J_tilde
+            - dt_factor * dt * S * inner(vcross(w_B, scross(u, B)), v) * dx  # D_1_tilde
+            - dt_factor * dt * S * inner(vcross(B, scross(u, w_B)), v) * dx  # D_2_tilde
+            - dt_factor * dt * inner(scross(u, w_B), Ff) * dx  # G_tilde
+                    )
+        J = J_picard
+
+    else:
+        raise ValueError("only know newton, mdp and picard as linearisation method")
+
+    return J
+
+def initial_condition():
+    z = Function(Z)
+    t.assign(0)
+    z.sub(0).interpolate(u_ex)
+    z.sub(1).interpolate(p_ex)
+    z.sub(2).interpolate(T_ex)
+    z.sub(3).interpolate(B_ex)
+    z.sub(4).interpolate(E_ex)
+    return z
+
+
+# Initial Condition
+z0 = initial_condition()
+z1 = initial_condition()
+z = Function(z0)
+z_test = TestFunction(Z)
+
+dt_factor = Constant(1)
+
+# Crank Nicolson form
+F_cn = (
+     inner(split(z)[0], split(z_test)[0])*dx
+   - inner(split(z0)[0], split(z_test)[0])*dx
+   + inner(split(z)[2], split(z_test)[2])*dx
+   - inner(split(z0)[2], split(z_test)[2])*dx
+   + inner(split(z)[3], split(z_test)[3])*dx
+   - inner(split(z0)[3], split(z_test)[3])*dx
+   + 0.5*dt*(form(z, z_test, Z, 0) + form(z0, z_test, Z, 1))
+  )
+
+# Implicit Euler form
+F_ie = (
+     inner(split(z)[0], split(z_test)[0])*dx
+   - inner(split(z0)[0], split(z_test)[0])*dx
+   + inner(split(z)[2], split(z_test)[2])*dx
+   - inner(split(z0)[2], split(z_test)[2])*dx
+   + inner(split(z)[3], split(z_test)[3])*dx
+   - inner(split(z0)[3], split(z_test)[3])*dx
+   + dt*(form(z, z_test, Z, 0))
+  )
+
+# BDF2 form
+F_bdf2 = (
+     inner(split(z)[0], split(z_test)[0])*dx
+   - 4.0/3.0*inner(split(z0)[0], split(z_test)[0])*dx
+   + 1.0/3.0*inner(split(z1)[0], split(z_test)[0])*dx
+   + inner(split(z)[2], split(z_test)[2])*dx
+   - 4.0/3.0*inner(split(z0)[2], split(z_test)[2])*dx
+   + 1.0/3.0*inner(split(z1)[2], split(z_test)[2])*dx
+   + inner(split(z)[3], split(z_test)[3])*dx
+   - 4.0/3.0*inner(split(z0)[3], split(z_test)[3])*dx
+   + 1.0/3.0*inner(split(z1)[3], split(z_test)[3])*dx
+   + 2.0/3.0*dt*form(z, z_test, Z, 0)
+  )
+
+if stab:
+    initial = interpolate(as_vector([sin(y), x]), V)
+    z_last_u.assign(initial)
+    stabilisation = BurmanStabilisation(Z.sub(0), state=z_last_u, h=FacetArea(mesh), weight=stab_weight)
+    stabilisation_form_u = stabilisation.form(split(z)[0], split(z_test)[0])
+    F_ie += dt*(advect * stabilisation_form_u)
+    F_cn += 0.5*dt*(advect * stabilisation_form_u)
+    F_bdf2 += 2.0/3.0*dt*(advect * stabilisation_form_u)
+
+J_cn = J_form(F_cn, z, z_test)
+J_bdf2 = J_form(F_bdf2, z, z_test)
+
+appctx = {"Re": 1.0/Pr, "gamma": gamma, "nu": Pr, "Pm": Pm, "gamma2": gamma2}
 params = solvers[args.solver_type]
 
 # Depending on the Mesh Hierarchy we have to use star or macrostar solver
 if args.solver_type in ["fs3by2", "fs3by2slu"]:
     params["fieldsplit_0"] = nsfsstar if hierarchy == "uniform" else nsfsmacrostar
 
-if args.solver_type in ["fs3by2", "fs3by2mlu"]:
+if args.solver_type in ["fs3by2", "fs3by2nslu"]:
     params["fieldsplit_1"] = outerschurstar if hierarchy == "uniform" else outerschurmacrostar
 
-if args.hierarchy == "bary":
-    params["snes_linesearch_type"] = "l2"
+# Set up nonlinear solver for first time step
+nvproblem_cn = NonlinearVariationalProblem(F_cn, z, bcs=bcs, J=J_cn)
+solver_cn = NonlinearVariationalSolver(nvproblem_cn, solver_parameters=params, options_prefix="", appctx=appctx)
+
+# Set up nonlinear solver for later time steps
+nvproblem_bdf2 = NonlinearVariationalProblem(F_bdf2, z, bcs=bcs, J=J_bdf2)
+solver_bdf2 = NonlinearVariationalSolver(nvproblem_bdf2, solver_parameters=params, options_prefix="", appctx=appctx)
 
 # Definition of solver and transfer operators
-solver = NonlinearVariationalSolver(problem, solver_parameters=params, options_prefix="", appctx=appctx)
 qtransfer = NullTransfer()
 Etransfer = NullTransfer()
 vtransfer = SVSchoeberlTransfer((Pr, gamma), 2, hierarchy)
 dgtransfer = DGInjection()
 
 transfers = {
-             Q.ufl_element(): (prolong, restrict, qtransfer.inject),
-             VectorElement("DG", mesh.ufl_cell(), args.k): (dgtransfer.prolong, restrict, dgtransfer.inject),
-             VectorElement("DG", mesh.ufl_cell(), args.k-1): (dgtransfer.prolong, restrict, dgtransfer.inject),
+                Q.ufl_element(): (prolong, restrict, qtransfer.inject),
+#                R.ufl_element(): (prolong, restrict, Etransfer.inject),
+                VectorElement("DG", mesh.ufl_cell(), args.k): (dgtransfer.prolong, restrict, dgtransfer.inject),
             }
 
 # On barycentric refined grids we need special prolongation operators
@@ -875,7 +963,8 @@ if hierarchy == "bary":
     transfers[V.ufl_element()] = (vtransfer.prolong, vtransfer.restrict, inject)
 
 transfermanager = TransferManager(native_transfers=transfers)
-solver.set_transfer_manager(transfermanager)
+solver_cn.set_transfer_manager(transfermanager)
+solver_bdf2.set_transfer_manager(transfermanager)
 
 results = {}
 Ras = args.Ra
@@ -902,154 +991,190 @@ def run(ra, pm, pr):
     Pm.assign(pm)
     Pr.assign(pr)
 
+    z0.assign(initial_condition())
+    z1.assign(initial_condition())
+    z.assign(z0)
+
     ind_dict = get_ind_dict(ra, pm, pr)
     val1, val2 = list(ind_dict.values())
 
-    if bc_varying:
-        global p_ex
-        u_ex_ = interpolate(u_ex, V)
-        B_ex_ = interpolate(B_ex, W)
-        T_ex_ = interpolate(T_ex, TT)
-        E_ex_ = interpolate(E_ex, R)
-        pintegral = assemble(p_ex*dx)
-        p_ex = p_ex - Constant(pintegral/area)
-        # bcs[0] is u, bcs[1] is B, bcs[2] is E
-        bcs[0].function_arg = u_ex_
+    # Set things up for timestepping
+    Tf = args.Tf  # final time
+    t.assign(0.0)  # current time we are solving for
+    global dt
+    global bcs
+    ntimestep = 0  # number of timesteps solved
+    total_nonlinear_its = 0  # number of total nonlinear iterations
+    total_linear_its = 0  # number of total linear iterations
 
-    if checkpoint:
-        try:
-            chk = DumbCheckpoint("dump/"+str(float(val2))+str(linearisation)+str(testproblem), mode=FILE_READ)
-            chk.load(z)
-        except Exception as e:
-            message(e)
+    while (float(t) < float(Tf-dt)+1.0e-10):
+        if ntimestep < 10:
+            dt.assign(args.dt/10)
+        else:
+            dt.assign(args.dt)
+        t.assign(t+dt)
+        if mesh.comm.rank == 0:
+            print(BLUE % ("\nSolving for time: %f" % t), flush=True)
 
-    if mesh.comm.rank == 0:
-        print(GREEN % ("Solving for #dofs = %s, Ra = %s, Pm = %s, gamma = %s, Pr = %s, baseN = %s, nref = %s, "
-                       "linearisation = %s, testproblem = %s, discr = %s, k = %s"
-                       % (Z.dim(), float(ra), float(pm), float(gamma), float(pr), int(baseN), int(nref),
-                          linearisation, testproblem, discr, int(float(k)))), flush=True)
-    if not os.path.exists("results/"):
-        os.mkdir("results/")
-
-    # Update z_last_u in Burman Stabilisation
-    if stab:
-        stabilisation.update(z.split()[0])
-        z_last_u.assign(u)
-
-    # Solve the problem and measure time
-    start = datetime.now()
-    solver.solve()
-    end = datetime.now()
-
-    # Iteration numbers
-    linear_its = solver.snes.getLinearSolveIterations()
-    nonlinear_its = solver.snes.getIterationNumber()
-    time = (end-start).total_seconds() / 60
-
-    if mesh.comm.rank == 0:
-        if nonlinear_its == 0:
-            nonlinear_its = 1
-        print(GREEN % ("Time taken: %.2f min in %d nonlinear iterations, %d linear iterations (%.2f Krylov iters per Newton step)"
-                       % (time, nonlinear_its, linear_its, linear_its/float(nonlinear_its))), flush=True)
-        print("%.2f @ %d @ %d @ %.2f" % (time, nonlinear_its, linear_its, linear_its/float(nonlinear_its)), flush=True)
-
-    (u, p, T, B, E) = z.split()
-
-    # Make sure that average of p is 0
-    pintegral = assemble(p*dx)
-    p.assign(p - Constant(pintegral/area))
-    B.rename("MagneticField")
-    u.rename("VelocityField")
-    T.rename("Temperature")
-    p.rename("Pressure")
-    E.rename("ElectricFieldf")
-
-    # Compute divergence of u and B
-    norm_div_u = sqrt(assemble(inner(div(u), div(u))*dx))
-    norm_div_B = sqrt(assemble(inner(div(B), div(B))*dx))
-
-    if mesh.comm.rank == 0:
-        print("||div(u)||_L^2 = %s" % norm_div_u, flush=True)
-        print("||div(B)||_L^2 = %s" % norm_div_B, flush=True)
-
-    if solution_known:
-        B_ex_ = interpolate(B_ex, B.function_space())
-        u_ex_ = interpolate(u_ex, u.function_space())
-        T_ex_ = interpolate(T_ex, T.function_space())
-        p_ex_ = interpolate(p_ex, p.function_space())
-        E_ex_ = interpolate(E_ex, E.function_space())
-        B_ex_.rename("ExactSolutionB")
-        u_ex_.rename("ExactSolutionu")
-        T_ex_.rename("ExactSolutionT")
-        p_ex_.rename("ExactSolutionp")
-        E_ex_.rename("ExactSolutionE")
-
-        # Compute error for MMS
-        error_u = errornorm(u_ex, u, 'L2')
-        error_B = errornorm(B_ex, B, 'L2')
-        error_T = errornorm(T_ex, T, 'L2')
-        error_E = errornorm(E_ex, E, 'L2')
-        error_p = errornorm(p_ex, p, 'L2')
+        if bc_varying:
+            if not solution_known:
+                raise ValueError("Sorry, don't know how to reconstruct the BCs")
+            else:
+                u_ex_ = interpolate(u_ex, V)
+                B_ex_ = interpolate(B_ex, W)
+                p_ex_ = interpolate(p_ex, Q)
+                T_ex_ = interpolate(T_ex, TT)
+                E_ex_ = interpolate(E_ex, R)
+                bcs[0].function_arg = u_ex_
+                bcs[1].function_arg = B_ex_
+                bcs[2].function_arg = E_ex_
 
         if mesh.comm.rank == 0:
-            print("Error ||u_ex - u||_L^2 = %s" % error_u, flush=True)
-            print("Error ||p_ex - p||_L^2 = %s" % error_p, flush=True)
-            print("Error ||T_ex - T||_L^2 = %s" % error_T, flush=True)
-            print("Error ||B_ex - B||_L^2 = %s" % error_B, flush=True)
-            print("Error ||E_ex - E||_L^2 = %s" % error_E, flush=True)
+            print(GREEN % ("Solving for #dofs = %s, Ra = %s, Pm = %s, gamma = %s, Pr = %s, baseN = %s, nref = %s, "
+                           "linearisation = %s, testproblem = %s, discr = %s, k = %s"
+                           % (Z.dim(), float(ra), float(pm), float(gamma), float(pr), int(baseN), int(nref),
+                              linearisation, testproblem, discr, int(float(k)))), flush=True)
+        if not os.path.exists("results/"):
+            os.mkdir("results/")
 
-            # Write errors to file
-            f = open("error.txt", 'a+')
-            f.write("%s,%s,%s,%s,%s\n" % (error_u, error_p, error_T, error_B, error_E))
-            f.close()
+        # Update z_last_u in Burman Stabilisation
+        if stab:
+            stabilisation.update(z.split()[0])
+            z_last_u.assign(u)
 
-        # Save plots of solution
-        if output:
-            File("output/mhd.pvd").write(u, u_ex_, p, p_ex_, T, T_ex_, B, B_ex_, E, E_ex_)
+        # Do CN in first timestep, after that BDF2
+        start = datetime.now()
+        if ntimestep < 1:
+            dt_factor.assign(0.5)
+            solver = solver_cn
+            solver_cn.solve()
+        else:
+            dt_factor.assign(2.0/3.0)
+            solver = solver_bdf2
+            solver_bdf2.solve()
+        end = datetime.now()
 
-        sys.stdout.flush()
-        info_dict = {
-            "Ra": ra,
-            "Pm": pm,
-            "Pr": pr,
-            "krylov/nonlin": linear_its/nonlinear_its,
-            "nonlinear_iter": nonlinear_its,
-            "error_u": error_u,
-            "error_p": error_p,
-            "error_T": error_T,
-            "error_B": error_B,
-            "error_E": error_E,
-        }
+        # Iteration numbers for this time step
+        linear_its = solver.snes.getLinearSolveIterations()
+        nonlinear_its = solver.snes.getIterationNumber()
+        time = (end-start).total_seconds() / 60
 
-    else:
-        info_dict = {
-            "Ra": ra,
-            "Pm": pm,
-            "Pr": pr,
-            "krylov/nonlin": linear_its/nonlinear_its,
-            "nonlinear_iter": nonlinear_its,
-        }
+        if nonlinear_its == 0:
+            nonlinear_its = 1
 
-        if output:
-            pvd.write(u, p, T, B, E, time=float(val1)*float(val2))
+        if linear_its == 0:
+            linear_its = 1
 
-    message(BLUE % info_dict)
+        if mesh.comm.rank == 0:
+            print(GREEN % ("Time taken: %.2f min in %d nonlinear iterations, %d linear iterations (%.2f Krylov iters per Newton step)"
+                           % (time, nonlinear_its, linear_its, linear_its/float(nonlinear_its))), flush=True)
+            print("%.2f @ %d @ %d @ %.2f" % (time, nonlinear_its, linear_its, linear_its/float(nonlinear_its)), flush=True)
+
+        (u, p, T, B, E) = z.split()
+
+        B.rename("MagneticField")
+        u.rename("VelocityField")
+        T.rename("Temperature")
+        p.rename("Pressure")
+        E.rename("ElectricFieldf")
+
+        norm_div_u = sqrt(assemble(inner(div(u), div(u))*dx))
+        norm_div_B = sqrt(assemble(inner(div(B), div(B))*dx))
+
+        if mesh.comm.rank == 0:
+            print("||div(u)||_L^2 = %s" % norm_div_u, flush=True)
+            print("||div(B)||_L^2 = %s" % norm_div_B, flush=True)
+
+        if solution_known:
+            B_ex_ = interpolate(B_ex, B.function_space())
+            u_ex_ = interpolate(u_ex, u.function_space())
+            p_ex_ = interpolate(p_ex, p.function_space())
+            T_ex_ = interpolate(T_ex, T.function_space())
+            E_ex_ = interpolate(E_ex, E.function_space())
+            B_ex_.rename("ExactSolutionB")
+            u_ex_.rename("ExactSolutionu")
+            p_ex_.rename("ExactSolutionp")
+            E_ex_.rename("ExactSolutionE")
+
+            # Compute errors for MMS
+            error_u = errornorm(u_ex, u, 'L2')
+            error_B = errornorm(B_ex, B, 'L2')
+            error_E = errornorm(E_ex, E, 'L2')
+            error_T = errornorm(T_ex, T, 'L2')
+            error_p = errornorm(p_ex, p, 'L2')
+
+            if mesh.comm.rank == 0:
+                print("Error ||u_ex - u||_L^2 = %s" % error_u, flush=True)
+                print("Error ||p_ex - p||_L^2 = %s" % error_p, flush=True)
+                print("Error ||B_ex - B||_L^2 = %s" % error_B, flush=True)
+                print("Error ||T_ex - T||_L^2 = %s" % error_T, flush=True)
+                print("Error ||E_ex - E||_L^2 = %s" % error_E, flush=True)
+
+                f = open("error.txt", 'a+')
+                f.write("%s,%s,%s,%s,%s\n" % (error_u, error_p, error_B, error_T, error_E))
+                f.close()
+
+            if output:
+                pvd.write(u, u_ex_, p, p_ex_, B, B_ex_, E, E_ex_, time=float(t))
+
+            sys.stdout.flush()
+            info_dict = {
+                "Ra": ra,
+                "Pr": pr,
+                "Pm": pm,
+                "S": s,
+                "krylov/nonlin": linear_its/nonlinear_its,
+                "nonlinear_iter": nonlinear_its,
+                "error_u": error_u,
+                "error_p": error_p,
+                "error_B": error_B,
+                "error_T": error_T,
+                "error_E": error_E,
+            }
+
+        else:
+            info_dict = {
+                "Ra": ra,
+                "Pm": pm,
+                "Pr": pr,
+                "S": s,
+                "krylov/nonlin": linear_its/nonlinear_its,
+                "nonlinear_iter": nonlinear_its,
+            }
+
+            if output:
+                pvd.write(u, p, T, B, E, time=float(t))
+
+        message(BLUE % info_dict)
+
+        z_last_u.assign(u)
+        if not os.path.exists("dump/"):
+            os.mkdir("dump/")
+        chk = DumbCheckpoint("dump/"+str(float(val2))+str(linearisation)+str(testproblem), mode=FILE_CREATE)
+        chk.store(z)
+
+        # update time step
+        z1.assign(z0)
+        z0.assign(z)
+        ntimestep += 1
+        total_nonlinear_its += nonlinear_its
+        total_linear_its += linear_its
+
+    # Calculate average number of nonlinear iterations per timestep and linear iterations per nonlinear iteration
+    avg_nonlinear_its = total_nonlinear_its / float(ntimestep)
+    avg_linear_its = total_linear_its / float(total_nonlinear_its)
+
     # Write iteration numbers to file
     if mesh.comm.rank == 0:
         dir = 'results/results'+str(linearisation)+str(testproblem)+'/'
         if not os.path.exists(dir):
             os.mkdir(dir)
         f = open(f"{dir}{list(ind_dict.keys())[0]}_{list(ind_dict.keys())[1]}_{float(val1)}_{float(val2)}.txt", 'w+')
-        f.write("({0:2.0f}){1:4.1f}".format(float(info_dict["nonlinear_iter"]), float(info_dict["krylov/nonlin"])))
+        f.write("({0:2.1f}){1:4.1f}".format(float(avg_nonlinear_its), float(avg_linear_its)))
         f.close()
 
-    z_last_u.assign(u)
-
-    # Create Checkpoints of solution
-    if not os.path.exists("dump/"):
-        os.mkdir("dump/")
-    chk = DumbCheckpoint("dump/"+str(float(val2))+str(linearisation)+str(testproblem), mode=FILE_CREATE)
-    chk.store(z)
+        print(GREEN % ("Average %2.1f nonlinear iterations, %2.1f linear iterations"
+                       % (avg_nonlinear_its, avg_linear_its)), flush=True)
 
 
 # Loop over parameters

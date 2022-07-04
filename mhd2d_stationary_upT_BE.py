@@ -209,9 +209,9 @@ class SchurPCBE(AuxiliaryOperatorPC):
         A = (
              + 1*inner(E, Ff) * dx
              + inner(scross(u_n, B), Ff) * dx
-             - 1/Pm * inner(B, vcurl(Ff)) * dx
+             - Pr/Pm * inner(B, vcurl(Ff)) * dx
              + inner(vcurl(E), C) * dx
-             + 1/Pm * inner(div(B), div(C)) * dx
+             + Pr/Pm * inner(div(B), div(C)) * dx
              + gamma2 * inner(div(B), div(C)) * dx
                       )
 
@@ -321,12 +321,17 @@ nsfsstar = {
          "mg_levels_ksp_norm_type": "unpreconditioned",
          "mg_levels_pc_type": "python",
          "mg_levels_pc_python_type": "firedrake.ASMStarPC",
+#         "mg_levels_pc_star_construct_dim": 1,
          "mg_levels_pc_star_backend": "tinyasm",
-         # "mg_levels_pc_star_construct_dim": 0,
-         # "mg_levels_pc_star_sub_sub_ksp_type": "preonly",
-         # "mg_levels_pc_star_sub_sub_pc_type": "lu",
-         # "mg_levels_pc_star_sub_sub_pc_factor_mat_solver_type": "umfpack",
-         "mg_coarse_ksp_type": "richardson",
+#         "mg_levels_pc_python_type": "firedrake.PatchPC",
+#         "mg_levels_patch_pc_patch_save_operators": True,
+#         "mg_levels_patch_pc_patch_partition_of_unity": False,
+#         "mg_levels_patch_pc_patch_sub_mat_type": "seqaij",
+#         "mg_levels_patch_pc_patch_construct_dim": 0,
+#         "mg_levels_patch_pc_patch_construct_type": "star",
+#         "mg_levels_patch_sub_ksp_type": "preonly",
+#         "mg_levels_patch_sub_pc_type": "lu",
+#         "mg_levels_patch_sub_pc_factor_mat_solver_type": "umfpack",         "mg_coarse_ksp_type": "richardson",
          "mg_coarse_ksp_max_it": 1,
          "mg_coarse_ksp_norm_type": "unpreconditioned",
          "mg_coarse_pc_type": "python",
@@ -377,18 +382,18 @@ nsfsmacrostar = {
            "mg_levels_ksp_max_it": 6,
            "mg_levels_ksp_norm_type": "unpreconditioned",
            "mg_levels_pc_type": "python",
-           "mg_levels_pc_python_type": "firedrake.ASMStarPC",
-           "mg_levels_pc_star_backend": "tinyasm",
-#           "mg_levels_pc_python_type": "firedrake.PatchPC",
-#           "mg_levels_patch_pc_patch_save_operators": True,
-#           "mg_levels_patch_pc_patch_partition_of_unity": False,
-#           "mg_levels_patch_pc_patch_sub_mat_type": "seqaij",
-#           "mg_levels_patch_pc_patch_construct_dim": 0,
-#           "mg_levels_patch_pc_patch_construct_type": "python",
-#           "mg_levels_patch_pc_patch_construct_python_type": "alfi.MacroStar",
-#           "mg_levels_patch_sub_ksp_type": "preonly",
-#           "mg_levels_patch_sub_pc_type": "lu",
-#           "mg_levels_patch_sub_pc_factor_mat_solver_type": "umfpack",
+#           "mg_levels_pc_python_type": "firedrake.ASMStarPC",
+#           "mg_levels_pc_star_backend": "tinyasm",
+           "mg_levels_pc_python_type": "firedrake.PatchPC",
+           "mg_levels_patch_pc_patch_save_operators": True,
+           "mg_levels_patch_pc_patch_partition_of_unity": False,
+           "mg_levels_patch_pc_patch_sub_mat_type": "seqaij",
+           "mg_levels_patch_pc_patch_construct_dim": 0,
+           "mg_levels_patch_pc_patch_construct_type": "python",
+           "mg_levels_patch_pc_patch_construct_python_type": "alfi.MacroStar",
+           "mg_levels_patch_sub_ksp_type": "preonly",
+           "mg_levels_patch_sub_pc_type": "lu",
+           "mg_levels_patch_sub_pc_factor_mat_solver_type": "umfpack",
            "mg_coarse_ksp_type": "richardson",
            "mg_coarse_ksp_max_it": 1,
            "mg_coarse_ksp_norm_type": "unpreconditioned",
@@ -635,7 +640,7 @@ parser.add_argument("--advect", type=float, default=1)
 parser.add_argument("--hierarchy", choices=["bary", "uniform"], default="bary")
 parser.add_argument("--discr", choices=["rt", "bdm", "cg"], required=True)
 parser.add_argument("--solver-type", choices=list(solvers.keys()), default="lu")
-parser.add_argument("--testproblem", choices=["hc", "smooth", "ldc2"], default="Wathen")
+parser.add_argument("--testproblem", choices=["cooling_channel","hc", "smooth", "ldc2"], default="Wathen")
 parser.add_argument("--linearisation", choices=["picard", "mdp", "newton"], required=True)
 parser.add_argument("--stab", default=False, action="store_true")
 parser.add_argument("--checkpoint", default=False, action="store_true")
@@ -684,6 +689,10 @@ if discr == "cg" and hierarchy != "bary":
 
 base = UnitSquareMesh(baseN, baseN, diagonal="crossed", distribution_parameters=distribution_parameters)
 
+if testproblem == "cooling_channel":
+    base = RectangleMesh(5*baseN, baseN, 10, 2, diagonal="crossed", distribution_parameters=distribution_parameters)
+    
+
 # Callbacks called before and after mesh refinement
 
 
@@ -710,11 +719,17 @@ elif hierarchy == "uniform":
 else:
     raise NotImplementedError("Only know bary, uniformbary and uniform for the hierarchy.")
 
+if testproblem == "cooling_channel":
+    for m in mh:
+        m.coordinates.dat.data[:, 1] -= 1.0
+    mesh = mh[-1]
+else:
 # Change mesh from [0,1]^2 to [-0.5,0.5]^2
-for m in mh:
-    m.coordinates.dat.data[:, 0] -= 0.5
-    m.coordinates.dat.data[:, 1] -= 0.5
-mesh = mh[-1]
+    for m in mh:
+        m.coordinates.dat.data[:, 0] -= 0.5
+        m.coordinates.dat.data[:, 1] -= 0.5
+    mesh = mh[-1]
+
 
 area = assemble(Constant(1, domain=mh[0])*dx)
 
@@ -765,7 +780,7 @@ n = FacetNormal(mesh)
 t = as_vector([n[1], -n[0]])
 
 eps = lambda x: sym(grad(x))
-g = as_vector([0,1])
+g = as_vector([0, 1])
 
 # Base weak form of problem
 F = (
@@ -856,6 +871,39 @@ elif testproblem == "hc":
     solution_known = False
     bc_varying = False
     bcs_ids_dont_apply = None
+
+elif testproblem == "cooling_channel":
+    u_ex = Constant((1, 0), domain=mesh)
+    B_ex = Constant((0, 1), domain=mesh)
+    B_ex = project(B_ex, W)
+#    u_ex = as_vector([(y-1)*(y+1), 0]) 
+#    bcs_ids_apply = (1, 2, 3, 4)
+    bcs_ids_apply = (1)
+    bcs_ids_dont_apply = (3, 4)
+    x1 = 1
+    x2 = 2
+    T_hot = 1.0
+    T_bc = conditional(x>x2, 0, conditional(x<x1, T_hot, T_hot*(x-x2)/(x1-x2)))
+    
+    bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),  # 4 == upper boundary (y==1)
+           DirichletBC(Z.sub(0), 0, bcs_ids_dont_apply),
+           DirichletBC(Z.sub(2), T_hot, 1),
+           DirichletBC(Z.sub(2), T_bc, 3),
+           DirichletBC(Z.sub(2), T_bc, 4),
+           DirichletBC(Z.sub(3), B_ex, "on_boundary"),
+           DirichletBC(Z.sub(4), 0, "on_boundary"),
+           PressureFixBC(Z.sub(1), 0, 1)]
+
+    if alternative_bcs:
+        bcs = [DirichletBC(Z.sub(0), u_ex, bcs_ids_apply),
+               DirichletBC(Z.sub(2), T_hot, 1),
+               DirichletBC(Z.sub(2), T_bc, 3),
+               DirichletBC(Z.sub(2), T_bc, 4),
+               PressureFixBC(Z.sub(1), 0, 1)]
+        F += 1/Pm * inner(scross(B_ex, n), Ff) * ds
+    rhs = None
+    solution_known = False
+    bc_varying = False
 
 elif testproblem == "ldc2":
     # example taken from https://doi.org/10.1016/j.jcp.2016.04.019
@@ -1015,20 +1063,27 @@ Prs = args.Pr
 
 pvd = File("output/mhd.pvd")
 
+def get_ind_dict(ra, pm, pr):
+    # Indices for output depending on Ra-Pr, Ra-Pm or Pr-Pm table
+    if len(args.Pm) == 1:
+        ind_dict = {"Ra": ra, "Pr": pr}
+    elif len(args.Ra) == 1:
+        ind_dict = {"Pr": pr, "Pm": pm}
+    elif len(args.Pr) == 1:
+        ind_dict = {"Ra": ra, "Pm": pm}
+    else:
+        raise ValueError("Can only iterate over two elements of Ra, Pm, Pr")
+    return ind_dict
+
 def run(ra, pm, pr):
     (u, p, T, B, E) = z.split()
     Ra.assign(ra)
     Pm.assign(pm)
     Pr.assign(pr)
-    
-    # Indices for output depending on Ra-Pr, Ra-Pm or Pr-Pm table
-    if len(args.Pr) == 1 or len(args.Pm) == 1:
-        ind1 = ra
-        ind2 = pr*pm
-    else:
-        ind1 = ra*pr #ra*pr
-        ind2 = pm
 
+    ind_dict = get_ind_dict(ra, pm, pr)
+    val1, val2 = list(ind_dict.values())
+    
     if bc_varying:
         if not solution_known:
             raise ValueError("Sorry, don't know how to reconstruct the BCs")
@@ -1046,7 +1101,7 @@ def run(ra, pm, pr):
 
     if checkpoint:
         try:
-            chk = DumbCheckpoint("dump/"+str(float(ind2))+str(linearisation)+str(testproblem), mode=FILE_READ)
+            chk = DumbCheckpoint("dump/"+str(float(val2))+str(linearisation)+str(testproblem), mode=FILE_READ)
             chk.load(z)
         except Exception as e:
             message(e)
@@ -1134,7 +1189,7 @@ def run(ra, pm, pr):
 
         # Save plots of solution
         if output:
-            pvd.write(u, u_ex_, p, p_ex_, T, T_ex_, B, B_ex_, E, E_ex_, time=float(ind1)*float(ind2))
+            pvd.write(u, u_ex_, p, p_ex_, T, T_ex_, B, B_ex_, E, E_ex_, time=float(val1)*float(val2))
 
         sys.stdout.flush()
         info_dict = {
@@ -1160,7 +1215,7 @@ def run(ra, pm, pr):
         }
 
         if output:
-            pvd.write(u, p, T, B, E, time=float(ind1)*float(ind2))
+            pvd.write(u, p, T, B, E, time=float(val1)*float(val2))
 
 #    B_ex_ = interpolate(B_ex, B.function_space())
 #    error_B_bndy_n = sqrt(assemble(inner(dot((B_ex_-B),n), dot((B_ex_-B),n))*ds))
@@ -1177,7 +1232,7 @@ def run(ra, pm, pr):
         dir = 'results/results'+str(linearisation)+str(testproblem)+'/'
         if not os.path.exists(dir):
             os.mkdir(dir)
-        f = open(dir+str(float(ind1))+str(float(ind2))+'.txt', 'w+')
+        f = open(f"{dir}{list(ind_dict.keys())[0]}_{list(ind_dict.keys())[1]}_{float(val1)}_{float(val2)}.txt", 'w+')
         f.write("({0:2.0f}){1:4.1f}".format(float(info_dict["nonlinear_iter"]), float(info_dict["krylov/nonlin"])))
         f.close()
 
@@ -1186,7 +1241,7 @@ def run(ra, pm, pr):
     # Create Checkpoints of solution
     if not os.path.exists("dump/"):
         os.mkdir("dump/")
-    chk = DumbCheckpoint("dump/"+str(float(ind2))+str(linearisation)+str(testproblem), mode=FILE_CREATE)
+    chk = DumbCheckpoint("dump/"+str(float(val2))+str(linearisation)+str(testproblem), mode=FILE_CREATE)
     chk.store(z)
 
 
@@ -1202,9 +1257,11 @@ for pm in Pms:
                 dir = 'results/results'+str(linearisation)+str(testproblem)+'/'
                 if not os.path.exists(dir):
                     os.mkdir(dir)
-                if len(args.Pr) == 1 or len(args.Pm) == 1:
-                    f = open(dir+str(float(ra))+str(float(pm*pr))+'.txt', 'w+')
-                else:
-                    f = open(dir+str(float(ra*pr))+str(float(pm))+'.txt', 'w+')
-                f.write("({0:2.0f}){1:4.1f}".format(0, 0))
-                f.close()
+                ind_dict = get_ind_dict(ra, pm, pr)
+                val1, val2 = list(ind_dict.values())
+                try:
+                    f = open(f"{dir}{list(ind_dict.keys())[0]}_{list(ind_dict.keys())[1]}_{float(val1)}_{float(val2)}.txt", 'w+')
+                    f.write("({0:2.0f}){1:4.1f}".format(0, 0))
+                    f.close()
+                except Exception as e:
+                    message(e)
