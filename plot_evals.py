@@ -13,6 +13,9 @@ from defcon import backend, StabilityTask
 from defcon.cli.common import fetch_bifurcation_problem
 from petsc4py import PETSc
 import matplotlib.pyplot as plt
+from matplotlib import rc
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+rc('text', usetex=True)
 
 RB = __import__("linear_eigenvalue")
 
@@ -36,10 +39,10 @@ opts = PETSc.Options()
 for k in solver_parameters:
     opts[k] = solver_parameters[k]
 
-Ras = linspace(10**3, 10**5, 300)
+Ras = linspace(10**3, 10**5, 400)
 Pr = 1.0
-S = 1000.0
-Pm = 10.0
+S = 1.0
+Pm = 1.0
 
 def compute(Ra):
         consts = [Ra, Pr, S, Pm]
@@ -82,7 +85,7 @@ def fix_plot(Ras):
     plt.ylabel(r"$\mathcal{R}(\lambda)$")
     plt.xlim([10**3, 10**5])
     plt.ylim([0, 220])
-    plt.savefig(plot_name, dpi=300)
+    plt.savefig(plot_name, dpi=500)
 
 def plot(Ras):
     sol_vec = []
@@ -103,6 +106,6 @@ def plot(Ras):
 #plot(Ras)
 
 if __name__ == '__main__':
-#    pool = Pool(4)
+#    pool = Pool(40)
 #    pool.map(compute, Ras)
     fix_plot(Ras)

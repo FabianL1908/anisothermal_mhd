@@ -122,9 +122,8 @@ def plot_diagram():
                         data = list(csv.reader(f, delimiter=","))
                     data = np.array(data)
                     data = data.astype(np.float32)
-#                    import ipdb; ipdb.set_trace()
                     full_data = np.vstack((full_data, data))
-                full_data = np.sort(full_data, axis=0)
+                full_data = full_data[full_data[:, 0].argsort()]
                 full_data = full_data.T
                 plt.plot(full_data[0], full_data[1], color=color, label=f"{b_key}", linestyle=linestyle)
         plt.xlabel(r"$\mathrm{Ra}$")
