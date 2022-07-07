@@ -189,7 +189,7 @@ def add_annotationbox(im_path, x, y, rot_degree):
         im_list = [im_path[i] for i in indices]
     xx = [int(im.split("/")[-1].split("_")[0]) for im in im_list]
 #    xy_list = [zipped_list[ind] for i, ind in enumerate(indices) if int(zipped_list[ind][0]) == xx[i]]
-    xy_list = [f for f in zipped_list if f[0] in xx]
+    xy_list = [f for f in zipped_list if int(f[0]) in xx]
     xy_list = list(set(xy_list))
     xy_list = sorted(xy_list, key=sort_key)
     ymin = np.min(y); ymax = np.max(y)
@@ -421,11 +421,11 @@ def plot_stability_figures():
 if __name__ == "__main__":
     pool = Pool(40)
     print(branchids)
-    create_pictures()
     for branchid in branchids:
         knownparams = get_known_params(branchid)
         pool.map(partial(stab_computation, branchid), knownparams)
         create_stability_figures(branchid)
+    create_pictures()
     plot_stability_figures()
 #    for branchid in [188]:
 #        knownparams = get_known_params(branchid)
