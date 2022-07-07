@@ -110,7 +110,7 @@ def stab_computation(branchid, param):
         # Save the eigenvalues
         if not os.path.isdir(path%(branchid)):
             os.makedirs(path%(branchid))
-        np.savetxt(path%(branchid)+"/%.f.csv"%param[0], x, delimiter=",")
+        np.savetxt(path%(branchid)+"/%.f.csv"%int(param[0]), x, delimiter=",")
 
 def create_pictures():
     for branchid in branchids:
@@ -137,7 +137,7 @@ def create_pictures():
         if not len(png_files) > 0:
             pic_branches.append(branchid)
     print(f"mkdir paraview; for branchid in {' '.join([str(num) for num in pic_branches])}; do scp -r {download_path}/paraview/$branchid paraview; done; scp {download_path}/create_png.py .; /Applications/ParaView-5.10.1.app/Contents/bin/pvpython create_png.py; rm -rf paraview/*/*.pvd; rm -rf paraview/*/*.vtu; scp -r paraview/* {download_path}/paraview; rm -rf paraview/*", flush=True)
-#    input("Hit Enter when you are done:")
+    input("Hit Enter when you are done:")
         
 def create_stability_figures(branchid):
     params = get_known_params(branchid)
@@ -419,13 +419,13 @@ def plot_stability_figures():
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-#    pool = Pool(40)
-#    print(branchids)
-#    create_pictures()
-#    for branchid in branchids:
-#        knownparams = get_known_params(branchid)
-#        pool.map(partial(stab_computation, branchid), knownparams)
-#        create_stability_figures(branchid)
+    pool = Pool(40)
+    print(branchids)
+    create_pictures()
+    for branchid in branchids:
+        knownparams = get_known_params(branchid)
+        pool.map(partial(stab_computation, branchid), knownparams)
+        create_stability_figures(branchid)
     plot_stability_figures()
 #    for branchid in [188]:
 #        knownparams = get_known_params(branchid)
