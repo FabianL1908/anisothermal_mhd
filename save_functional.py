@@ -131,10 +131,12 @@ def plot_diagram():
         if dgrm_type == "u":
             plt.ylim(bottom=0)
         plt.xlim(right=10**5)
+        plt.xlim(left=0)
 #        plt.tight_layout()
         handles, labels = plt.gca().get_legend_handles_labels()
-        by_label = dict(zip(labels, handles))
-        plt.legend(by_label.values(), by_label.keys(), bbox_to_anchor=(1.0, 1.0))
+        if dgrm_type == "B":
+            by_label = dict(zip(labels, handles))
+            plt.legend(by_label.values(), by_label.keys(), bbox_to_anchor=(1.0, 1.0))
  #            plt.legend(bbox_to_anchor=(1, 1.0))
         plt.savefig(f'diagram_{dgrm_type}.png', dpi=400, bbox_inches="tight")
 
@@ -161,6 +163,7 @@ def plot_diagram():
             figures[idx].set_ylabel(functionals[idx][2], rotation=0, labelpad=15)
             figures[idx].set_ylim(bottom=0)
             figures[idx].set_xlim(right=10**5)
+            figures[idx].set_xlim(left=0)
 #    plt.tight_layout()
 #        figures[idx].set_xticks(np.linspace(), np.max(data[0]), 5))
     plt.savefig(f'diagram_uTB.png', dpi=400, bbox_inches='tight')
