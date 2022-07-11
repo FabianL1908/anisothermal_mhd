@@ -32,8 +32,8 @@ def get_rot_degree_dict():
 
 
 def get_colors():
-    return itertools.cycle(('b', 'g', 'r', 'c', 'm', 'y'))
+    return ('b', 'g', 'r', 'c', 'm', 'y', 'b', 'g', 'r', 'c', 'm', 'y')
 
 def get_linestyles():
-    return itertools.cycle(('-', '-', '-', '-', '-', '-', '-', '--', '--', '--', '--', '--', '--', '--', '-.', '-.', '-.', '-.', '-.', '-.', '-', ':'))
+    return ('-', '-', '-', '-', '-', '-', '-', '--', '--', '--', '--', '--', '--', '--')
     
