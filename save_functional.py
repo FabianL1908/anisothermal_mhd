@@ -113,8 +113,8 @@ def plot_diagram():
         linestyles = get_linestyles()
         branchid_dict = get_branches()
         for b_key in branchid_dict:
-            color = next(colors)
-            linestyle = next(linestyles)
+            color = colors[int(b_key)-1]
+            linestyle = linestyles[int(b_key)-1]
             for outer_list in branchid_dict[b_key]:
                 full_data = np.array([]).reshape((0,2))
                 for branchid in outer_list:
@@ -150,7 +150,7 @@ def plot_diagram():
     for idx, dgrm_type in enumerate(["u", "T", "B"]):
         branchid_dict = get_branches()
         for b_key in branchid_dict:
-            color = next(colors)
+            color = color[int(b_key)-1]
             for outer_list in branchid_dict[b_key]:
                 for branchid in outer_list:
                     with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r') as f:

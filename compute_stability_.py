@@ -268,6 +268,7 @@ def plot_stability_figures():
         else:
                 raise ValueError("More than two plots per Graph are not possible")
         colors = get_colors()
+        color = colors[int(b_key)-1]
         for plot_idx, outer_list in enumerate(branchids_dict[b_key]):
             xdata = np.array([])
             yudata = np.array([])
@@ -278,7 +279,6 @@ def plot_stability_figures():
                 return np.array([])
             yrealdata = defaultdict(def_value)
             yimagdata = defaultdict(def_value)
-            color = next(colors)
             max_num_branch = 100
             for branchid in outer_list:
                 print(f"{b_key}: Plotting branch {branchid}")
@@ -312,10 +312,8 @@ def plot_stability_figures():
             fig_u.plot(xdata, yudata, color=color)
             fig_T.plot(xdata, yTdata, color=color)
             fig_B.plot(xdata, yBdata, color=color)
-            colors2 = get_colors()
             color3 = "b"
             for i in range(0, num_eigs):
-                color2 = next(colors2)
                 try:
 #                    with warnings.catch_warnings():
 #                        warnings.simplefilter("ignore", category=RuntimeWarning)
