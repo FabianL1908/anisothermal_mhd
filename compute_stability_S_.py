@@ -84,7 +84,7 @@ def get_known_params(branchid):
     params = knownparams_init
     knownparams = [p for p in knownparams if p[2] in params]
     #print(knownparams)
-    return knownparams[::3]    
+    return knownparams[::3]
 
 def stab_computation(branchid, param):
 #    for param in [knownparams[0]]:
@@ -189,6 +189,7 @@ def add_annotationbox(im_path, x, y, rot_degree):
         im_list = [im_path[i] for i in indices]
     xx = [int(im.split("/")[-1].split("_")[0]) for im in im_list]
 #    xy_list = [zipped_list[ind] for i, ind in enumerate(indices) if int(zipped_list[ind][0]) == xx[i]]
+    import ipdb; ipdb.set_trace()
     xy_list = [f for f in zipped_list if int(f[0]) in xx]
     xy_list = list(set(xy_list))
     xy_list = sorted(xy_list, key=sort_key)
@@ -201,7 +202,7 @@ def add_annotationbox(im_path, x, y, rot_degree):
         else:
             xybox = (xy[0], xy[1] - 0.5*(ymid-ymin))
         im = mpimg.imread(im_list[i])
-        if rot_degree >= 0:
+        if rot_degree > 0:
             im = ndimage.rotate(im, rot_degree)
         elif rot_degree == -1:
             im = np.fliplr(im)
@@ -375,6 +376,7 @@ def plot_stability_figures():
             fig_stab_real.set_ylim(top=10)
 #            fig_stab_real.set_ylim(bottom=y0-2)
         fig_stab_imag.set_ylim(bottom=0)
+        fig_stab_imag.set_ylim(top=max(fig_stab_imag.get_ylim()[1], 0.01))
         fig_stab_real.axhline(0, color='black')
         fig_stab_real.set_xlim(xlims)
         fig_stab_imag.set_xlim(xlims)
@@ -419,13 +421,13 @@ def plot_stability_figures():
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-    pool = Pool(40)
-    print(branchids)
-    for branchid in branchids:
-        knownparams = get_known_params(branchid)
-        pool.map(partial(stab_computation, branchid), knownparams)
-        create_stability_figures(branchid)
-    create_pictures()
+ #   pool = Pool(40)
+ #   print(branchids)
+ #   for branchid in branchids:
+ #       knownparams = get_known_params(branchid)
+ #       pool.map(partial(stab_computation, branchid), knownparams)
+ #       create_stability_figures(branchid)
+ #   create_pictures()
     plot_stability_figures()
 #    for branchid in [188]:
 #        knownparams = get_known_params(branchid)
