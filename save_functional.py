@@ -130,6 +130,8 @@ def plot_diagram():
         plt.ylabel(functionals[idx][2], rotation=0, labelpad=15)
         if dgrm_type == "u":
             plt.ylim(bottom=0)
+        if dgrm_type == "B":
+            plt.ylim(bottom=1)
         plt.xlim(right=10**5)
         plt.xlim(left=0)
 #        plt.tight_layout()

@@ -23,7 +23,7 @@ from matplotlib import rc
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 14})
 rc('text', usetex=True)
 
-from utils import get_branches, get_colors, get_linestyles
+from utils import get_colors, get_linestyles
 
 RB = __import__("rayleigh-benard")
 
@@ -31,6 +31,19 @@ RB = __import__("rayleigh-benard")
 
 #branchids = [44]
 #branchids = [34,54,63,64,89]
+
+def get_branches():
+    branch_dict = {}
+    with open('branches3.csv', newline='') as csvfile:
+        data = csv.reader(csvfile, delimiter=',')
+        for row in data:
+            branch_dict[row[0]] = []
+    with open('branches3.csv', newline='') as csvfile:
+        data = csv.reader(csvfile, delimiter=',')
+        for row in data:
+            int_row = [int(r) for r in row[1:]]
+            branch_dict[row[0]].append(int_row)
+    return branch_dict
 
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("--branchids", nargs='+', type=int, default=[-1])
@@ -65,39 +78,40 @@ try:
 except FileExistsError:
     print("Directory already exists")
 
-for branchid in branchids:
-    # Parameters
-    fixed_params = problem.target_parameter_values()
-    knownparams = io.known_parameters(fixed={"Pr": fixed_params["Pr"][0],
-                                             "Ra": fixed_params["Ra"][0],
-                                             "Pm": fixed_params["Pm"][0]}, branchid=branchid)[::3]
-    knownparams_S = np.array([l[2] for l in knownparams])
-    Nu = np.array([])
-    NT = np.array([])
-    NB = np.array([])
-    for param in knownparams:
-        print(param)
-        print("Computing functional for parameters %s, branchid = %d" %
-              (str(param[2]), branchid), flush=True)
-        solution = io.fetch_solutions(param, [branchid])[0]
-        funcs = []
-        for functional in functionals:
-            func = functional[0]
-            j = func(solution, param)
-            funcs.append(j)
-        
-        Nu = np.append(Nu, funcs[0])
-        NT = np.append(NT, funcs[1])
-        NB = np.append(NB, funcs[2])
+def save_functional():
+    for branchid in branchids:
+        # Parameters
+        fixed_params = problem.target_parameter_values()
+        knownparams = io.known_parameters(fixed={"Pr": fixed_params["Pr"][0],
+                                                 "Ra": fixed_params["Ra"][0],
+                                                 "Pm": fixed_params["Pm"][0]}, branchid=branchid)[::3]
+        knownparams_S = np.array([l[2] for l in knownparams])
+        Nu = np.array([])
+        NT = np.array([])
+        NB = np.array([])
+        for param in knownparams:
+            print(param)
+            print("Computing functional for parameters %s, branchid = %d" %
+                  (str(param[2]), branchid), flush=True)
+            solution = io.fetch_solutions(param, [branchid])[0]
+            funcs = []
+            for functional in functionals:
+                func = functional[0]
+                j = func(solution, param)
+                funcs.append(j)
 
-    # save to text file
-    knownparams_S = knownparams_S.reshape((len(knownparams_S), 1))
-    Nu = Nu.reshape((len(Nu), 1))
-    NT = NT.reshape((len(NT), 1))
-    NB = NB.reshape((len(NB), 1))
-    np.savetxt("diagram_u/%d.csv"%branchid, np.hstack((knownparams_S, Nu)), delimiter=",")
-    np.savetxt("diagram_T/%d.csv"%branchid, np.hstack((knownparams_S, NT)), delimiter=",")
-    np.savetxt("diagram_B/%d.csv"%branchid, np.hstack((knownparams_S, NB)), delimiter=",")
+            Nu = np.append(Nu, funcs[0])
+            NT = np.append(NT, funcs[1])
+            NB = np.append(NB, funcs[2])
+
+        # save to text file
+        knownparams_S = knownparams_S.reshape((len(knownparams_S), 1))
+        Nu = Nu.reshape((len(Nu), 1))
+        NT = NT.reshape((len(NT), 1))
+        NB = NB.reshape((len(NB), 1))
+        np.savetxt("diagram_u/%d.csv"%branchid, np.hstack((knownparams_S, Nu)), delimiter=",")
+        np.savetxt("diagram_T/%d.csv"%branchid, np.hstack((knownparams_S, NT)), delimiter=",")
+        np.savetxt("diagram_B/%d.csv"%branchid, np.hstack((knownparams_S, NB)), delimiter=",")
 
 def plot_diagram():
 #    fig = plt.figure()
@@ -113,11 +127,12 @@ def plot_diagram():
         linestyles = get_linestyles()
         branchid_dict = get_branches()
         for b_key in branchid_dict:
-            color = next(colors)
-            linestyle = next(linestyles)
+            color = colors[int(b_key)-1]
+            linestyle = linestyles[int(b_key)-1]
             for outer_list in branchid_dict[b_key]:
                 full_data = np.array([]).reshape((0,2))
                 for branchid in outer_list:
+                    print(branchid)
                     with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r') as f:
                         data = list(csv.reader(f, delimiter=","))
                     data = np.array(data)
@@ -130,6 +145,8 @@ def plot_diagram():
         plt.ylabel(functionals[idx][2], rotation=0, labelpad=15)
         if dgrm_type == "u":
             plt.ylim(bottom=0)
+        if dgrm_type == "B":
+            plt.ylim(bottom=1)
         plt.xlim(right=10**3)
         plt.xlim(left=0)
 #        plt.tight_layout()
@@ -138,6 +155,8 @@ def plot_diagram():
             by_label = dict(zip(labels, handles))
             plt.legend(by_label.values(), by_label.keys(), bbox_to_anchor=(1.0, 1.0))
  #            plt.legend(bbox_to_anchor=(1, 1.0))
+        if dgrm_type == "T":
+            plt.hlines(y=1/3, xmin=0, xmax=10**5, color='black', linewidth=0.6, linestyle="--")
         plt.savefig(f'diagram_{dgrm_type}.png', dpi=400, bbox_inches="tight")
 
     colors = get_colors()
@@ -150,7 +169,7 @@ def plot_diagram():
     for idx, dgrm_type in enumerate(["u", "T", "B"]):
         branchid_dict = get_branches()
         for b_key in branchid_dict:
-            color = next(colors)
+            color = colors[int(b_key)-1]
             for outer_list in branchid_dict[b_key]:
                 for branchid in outer_list:
                     with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r') as f:
@@ -168,6 +187,6 @@ def plot_diagram():
 #        figures[idx].set_xticks(np.linspace(), np.max(data[0]), 5))
     plt.savefig(f'diagram_uTB.png', dpi=400, bbox_inches='tight')
             
-
+#save_functional()
 plot_diagram()
 #shutil.make_archive("/home/boulle/Documents/diagram_data", 'zip', "diagram_data")

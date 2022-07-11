@@ -27,7 +27,7 @@ from defcon import backend, StabilityTask
 from defcon.cli.common import fetch_bifurcation_problem
 from petsc4py import PETSc
 
-from utils import get_branches, get_colors, get_rot_degree_dict
+from utils import get_branches, get_colors, get_rot_degree_dict, get_image_dict, get_xybox
 
 #RB = __import__("rayleigh-benard")
 RB = __import__("linear_eigenvalue")
@@ -46,7 +46,7 @@ path = "CSV/%d"
 
 comm = COMM_WORLD
 
-num_eigs = 6
+num_eigs = 10
 
 # Construct mono-3d problem
 problem = RB.EVRayleighBenardProblem()
@@ -115,9 +115,10 @@ def stab_computation(branchid, param):
 def create_pictures():
     for branchid in branchids:
         params = get_known_params(branchid)
-        # only save 10 plots
+        # only save num_plot plots
+        num_plots = 20
         len_params = len(params)
-        params_idxs = np.linspace(0, len(params)-1, 10)
+        params_idxs = np.linspace(0, len(params)-1, num_plots)
         params_idxs = [int(np.floor(x)) for x in params_idxs]
         if not os.path.isdir("paraview"):
             os.makedirs("paraview")
@@ -129,7 +130,7 @@ def create_pictures():
             problem.save_pvd(solution, pvd, params)
 
     print("Run the following command on your local machine:")
-    download_path = "laakmann@vanisher:" + os.getcwd()
+    download_path = "laakmann@wolverine:" + os.getcwd()
     pic_branches = []
     for branchid in branchids:
         mypath = os.path.join("paraview", str(branchid))
@@ -182,25 +183,40 @@ def add_annotationbox(im_path, x, y, rot_degree):
     midind = np.abs((xxx-xmid)).argmin()
 #    indices = (0, midind-1, len(im_path)-1)
 #    import ipdb; ipdb.set_trace()
-    indices = (0, min(2,int(midind/2)), midind-1, int((len(im_path)-midind)/2+midind-1), len(im_path)-1)
+    image_dict = get_image_dict()
+    im_branches = [b.split('/')[1]+b.split('_')[1][0] for b in im_path]
+    im_branches = list(dict.fromkeys(im_branches)) 
+    if im_branches[0] in image_dict:
+        indices = []
+        pos = []
+        for im_b in im_branches:
+            indices += [int(f) for f in image_dict[im_b][::2]]
+            pos += [f for f in image_dict[im_b][1::2]]
+    else:
+        indices = (0, min(2,int(midind/2)), midind-1, int((len(im_path)-midind)/2+midind-1), len(im_path)-1)
     if len(im_path) <= indices[-1]:
-        im_list = [im_path[i] for i in (0, len(indices)-1)] 
+        im_list = [im_path[i] for i in (0, len(indices)-1)]
+        pos = [pos[i] for i in (0, len(indices)-1)]
     else:
         im_list = [im_path[i] for i in indices]
     xx = [int(im.split("/")[-1].split("_")[0]) for im in im_list]
 #    xy_list = [zipped_list[ind] for i, ind in enumerate(indices) if int(zipped_list[ind][0]) == xx[i]]
-    import ipdb; ipdb.set_trace()
     xy_list = [f for f in zipped_list if int(f[0]) in xx]
     xy_list = list(set(xy_list))
     xy_list = sorted(xy_list, key=sort_key)
     ymin = np.min(y); ymax = np.max(y)
     ymid = (ymax+ymin)/2
+    xmin = np.min(x); xmax = np.max(x)
+    xmid = (xmax+xmin)/2
     ab_list = []
     for i, xy in enumerate(xy_list):
-        if xy[1] < ymid:
-            xybox = (xy[0], xy[1] + 0.5*(ymid-ymin))
+        if im_branches[0] in image_dict:
+            xybox = get_xybox(xy, 0.25*(xmid-xmin), 0.5*(ymid-ymin), pos[i])
         else:
-            xybox = (xy[0], xy[1] - 0.5*(ymid-ymin))
+            if xy[1] < ymid:
+                xybox = (xy[0], xy[1] + 0.5*(ymid-ymin))
+            else:
+                xybox = (xy[0], xy[1] - 0.5*(ymid-ymin))
         im = mpimg.imread(im_list[i])
         if rot_degree > 0:
             im = ndimage.rotate(im, rot_degree)
@@ -256,7 +272,7 @@ def plot_stability_figures():
             fig_B = fig.add_subplot(grid[4:8, 2:6])
             fig_stab_real = fig.add_subplot(grid[8:, :4])
             fig_stab_imag = fig.add_subplot(grid[8:, 4:])
-        elif len_branch == 2:
+        elif len_branch == 2 or len_branch==3:
             fig = plt.figure(figsize=(12,12))
             grid = plt.GridSpec(12, 8, hspace=14, wspace=14)
             fig_u = fig.add_subplot(grid[:4, :4])
@@ -267,8 +283,10 @@ def plot_stability_figures():
             fig_stab_real2 = fig.add_subplot(grid[10:12, :4])
             fig_stab_imag2 = fig.add_subplot(grid[10:12, 4:])            
         else:
-                raise ValueError("More than two plots per Graph are not possible")
+            continue
+                #raise ValueError("More than two plots per Graph are not possible")
         colors = get_colors()
+        color = colors[int(b_key)-1]
         for plot_idx, outer_list in enumerate(branchids_dict[b_key]):
             xdata = np.array([])
             yudata = np.array([])
@@ -279,7 +297,6 @@ def plot_stability_figures():
                 return np.array([])
             yrealdata = defaultdict(def_value)
             yimagdata = defaultdict(def_value)
-            color = next(colors)
             max_num_branch = 100
             for branchid in outer_list:
                 print(f"{b_key}: Plotting branch {branchid}")
@@ -313,10 +330,8 @@ def plot_stability_figures():
             fig_u.plot(xdata, yudata, color=color)
             fig_T.plot(xdata, yTdata, color=color)
             fig_B.plot(xdata, yBdata, color=color)
-            colors2 = get_colors()
             color3 = "b"
             for i in range(0, num_eigs):
-                color2 = next(colors2)
                 try:
 #                    with warnings.catch_warnings():
 #                        warnings.simplefilter("ignore", category=RuntimeWarning)
@@ -421,13 +436,13 @@ def plot_stability_figures():
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
- #   pool = Pool(40)
- #   print(branchids)
- #   for branchid in branchids:
- #       knownparams = get_known_params(branchid)
- #       pool.map(partial(stab_computation, branchid), knownparams)
- #       create_stability_figures(branchid)
- #   create_pictures()
+#    pool = Pool(40)
+#    print(branchids)
+#    for branchid in branchids:
+#        knownparams = get_known_params(branchid)
+#        pool.map(partial(stab_computation, branchid), knownparams)
+#        create_stability_figures(branchid)
+#    create_pictures()
     plot_stability_figures()
 #    for branchid in [188]:
 #        knownparams = get_known_params(branchid)
