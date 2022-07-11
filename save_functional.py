@@ -138,6 +138,8 @@ def plot_diagram():
             by_label = dict(zip(labels, handles))
             plt.legend(by_label.values(), by_label.keys(), bbox_to_anchor=(1.0, 1.0))
  #            plt.legend(bbox_to_anchor=(1, 1.0))
+        if dgrm_type == "T":
+            plt.hlines(y=1/3, xmin=0, xmax=10**5, color='black', linewidth=0.6, linestyle="--")
         plt.savefig(f'diagram_{dgrm_type}.png', dpi=400, bbox_inches="tight")
 
     colors = get_colors()
@@ -150,7 +152,7 @@ def plot_diagram():
     for idx, dgrm_type in enumerate(["u", "T", "B"]):
         branchid_dict = get_branches()
         for b_key in branchid_dict:
-            color = color[int(b_key)-1]
+            color = colors[int(b_key)-1]
             for outer_list in branchid_dict[b_key]:
                 for branchid in outer_list:
                     with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r') as f:

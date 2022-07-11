@@ -27,7 +27,7 @@ from defcon import backend, StabilityTask
 from defcon.cli.common import fetch_bifurcation_problem
 from petsc4py import PETSc
 
-from utils import get_branches, get_colors, get_rot_degree_dict
+from utils import get_branches, get_colors, get_rot_degree_dict, get_image_dict, get_xybox
 
 #RB = __import__("rayleigh-benard")
 RB = __import__("linear_eigenvalue")
@@ -114,10 +114,12 @@ def stab_computation(branchid, param):
 
 def create_pictures():
     for branchid in branchids:
+#        import ipdb; ipdb.set_trace()
         params = get_known_params(branchid)
-        # only save 10 plots
+        # only save num_plot plots
+        num_plots = 20
         len_params = len(params)
-        params_idxs = np.linspace(0, len(params)-1, 10)
+        params_idxs = np.linspace(0, len(params)-1, num_plots)
         params_idxs = [int(np.floor(x)) for x in params_idxs]
         if not os.path.isdir("paraview"):
             os.makedirs("paraview")
@@ -181,10 +183,21 @@ def add_annotationbox(im_path, x, y, rot_degree):
     xmid = (x[-1] - x[0]) / 2 + x[0]
     midind = np.abs((xxx-xmid)).argmin()
 #    indices = (0, midind-1, len(im_path)-1)
+    image_dict = get_image_dict()
+    im_branches = [b.split('/')[1]+b.split('_')[1][0] for b in im_path]
 #    import ipdb; ipdb.set_trace()
-    indices = (0, min(2,int(midind/2)), midind-1, int((len(im_path)-midind)/2+midind-1), len(im_path)-1)
+    im_branches = list(dict.fromkeys(im_branches)) 
+    if im_branches[0] in image_dict:
+        indices = []
+        pos = []
+        for im_b in im_branches:
+            indices += [int(f) for f in image_dict[im_b][::2]]
+            pos += [f for f in image_dict[im_b][1::2]]
+    else:
+        indices = (0, min(2,int(midind/2)), midind-1, int((len(im_path)-midind)/2+midind-1), len(im_path)-1)
     if len(im_path) <= indices[-1]:
-        im_list = [im_path[i] for i in (0, len(indices)-1)] 
+        im_list = [im_path[i] for i in (0, len(indices)-1)]
+        pos = [pos[i] for i in (0, len(indices)-1)]
     else:
         im_list = [im_path[i] for i in indices]
     xx = [int(im.split("/")[-1].split("_")[0]) for im in im_list]
@@ -194,12 +207,18 @@ def add_annotationbox(im_path, x, y, rot_degree):
     xy_list = sorted(xy_list, key=sort_key)
     ymin = np.min(y); ymax = np.max(y)
     ymid = (ymax+ymin)/2
+    xmin = np.min(x); xmax = np.max(x)
+    xmid = (xmax+xmin)/2
     ab_list = []
+#    import ipdb; ipdb.set_trace()
     for i, xy in enumerate(xy_list):
-        if xy[1] < ymid:
-            xybox = (xy[0], xy[1] + 0.5*(ymid-ymin))
+        if im_branches[0] in image_dict:
+            xybox = get_xybox(xy, 0.25*(xmid-xmin), 0.5*(ymid-ymin), pos[i])
         else:
-            xybox = (xy[0], xy[1] - 0.5*(ymid-ymin))
+             if xy[1] < ymid:
+                 xybox = (xy[0], xy[1] + 0.5*(ymid-ymin))
+             else:
+                 xybox = (xy[0], xy[1] - 0.5*(ymid-ymin))
         im = mpimg.imread(im_list[i])
         if rot_degree >= 0:
             im = ndimage.rotate(im, rot_degree)
@@ -417,13 +436,13 @@ def plot_stability_figures():
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-    pool = Pool(40)
-    print(branchids)
-    for branchid in branchids:
-        knownparams = get_known_params(branchid)
-        pool.map(partial(stab_computation, branchid), knownparams)
-        create_stability_figures(branchid)
-    create_pictures()
+#    pool = Pool(40)
+#    print(branchids)
+#    for branchid in branchids:
+#        knownparams = get_known_params(branchid)
+#        pool.map(partial(stab_computation, branchid), knownparams)
+#        create_stability_figures(branchid)
+#    create_pictures()
     plot_stability_figures()
 #    for branchid in [188]:
 #        knownparams = get_known_params(branchid)
