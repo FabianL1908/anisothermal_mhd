@@ -40,6 +40,11 @@ def get_rot_degree_dict():
     return rot_degree_dict
 
 def get_xybox(xy, xdist, ydist, pos):
+    if int(pos) > 9:
+        scale = int(pos[1:])
+        xdist *= scale
+        ydist *= scale
+        pos = pos[0]
     if pos == "1": return (xy[0]-xdist, xy[1]+ydist)
     if pos == "2": return (xy[0], xy[1]+ydist)
     if pos == "3": return (xy[0]+xdist, xy[1]+ydist)

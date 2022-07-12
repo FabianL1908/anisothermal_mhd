@@ -34,11 +34,11 @@ RB = __import__("rayleigh-benard")
 
 def get_branches():
     branch_dict = {}
-    with open('branches3.csv', newline='') as csvfile:
+    with open('branches.csv', newline='') as csvfile:
         data = csv.reader(csvfile, delimiter=',')
         for row in data:
             branch_dict[row[0]] = []
-    with open('branches3.csv', newline='') as csvfile:
+    with open('branches.csv', newline='') as csvfile:
         data = csv.reader(csvfile, delimiter=',')
         for row in data:
             int_row = [int(r) for r in row[1:]]
