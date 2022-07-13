@@ -41,7 +41,10 @@ def get_rot_degree_dict():
 
 def get_xybox(xy, xdist, ydist, pos):
     if int(pos) > 9:
-        scale = int(pos[1:])
+        if pos[1] == "0":
+            scale = float(f"0.{pos[2:]}")
+        else:
+            scale = int(pos[1:])
         xdist *= scale
         ydist *= scale
         pos = pos[0]
