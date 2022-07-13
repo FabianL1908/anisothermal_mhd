@@ -130,7 +130,7 @@ def create_pictures():
             problem.save_pvd(solution, pvd, params)
 
     print("Run the following command on your local machine:")
-    download_path = "laakmann@wolverine:" + os.getcwd()
+    download_path = "laakmann@vanisher:" + os.getcwd()
     pic_branches = []
     for branchid in branchids:
         mypath = os.path.join("paraview", str(branchid))
@@ -185,7 +185,8 @@ def add_annotationbox(im_path, x, y, rot_degree):
 #    import ipdb; ipdb.set_trace()
     image_dict = get_image_dict()
     im_branches = [b.split('/')[1]+b.split('_')[1][0] for b in im_path]
-    im_branches = list(dict.fromkeys(im_branches)) 
+    im_branches = list(dict.fromkeys(im_branches))
+#    import ipdb; ipdb.set_trace()
     if im_branches[0] in image_dict:
         indices = []
         pos = []
@@ -195,8 +196,7 @@ def add_annotationbox(im_path, x, y, rot_degree):
     else:
         indices = (0, min(2,int(midind/2)), midind-1, int((len(im_path)-midind)/2+midind-1), len(im_path)-1)
     if len(im_path) <= indices[-1]:
-        im_list = [im_path[i] for i in (0, len(indices)-1)]
-        pos = [pos[i] for i in (0, len(indices)-1)]
+        im_list = [im_path[i] for i in indices if i < len(im_path)-1]
     else:
         im_list = [im_path[i] for i in indices]
     xx = [int(im.split("/")[-1].split("_")[0]) for im in im_list]
@@ -436,13 +436,13 @@ def plot_stability_figures():
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-#    pool = Pool(40)
-#    print(branchids)
-#    for branchid in branchids:
-#        knownparams = get_known_params(branchid)
-#        pool.map(partial(stab_computation, branchid), knownparams)
-#        create_stability_figures(branchid)
-#    create_pictures()
+    pool = Pool(40)
+    print(branchids)
+    for branchid in branchids:
+        knownparams = get_known_params(branchid)
+        pool.map(partial(stab_computation, branchid), knownparams)
+        create_stability_figures(branchid)
+    create_pictures()
     plot_stability_figures()
 #    for branchid in [188]:
 #        knownparams = get_known_params(branchid)

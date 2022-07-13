@@ -175,6 +175,7 @@ def get_data(path):
     return data
 
 def add_annotationbox(im_path, x, y, rot_degree):
+    import ipdb; ipdb.set_trace()
     l = len(x)
     zipped_list = list(zip(x,y))
     sort_key = lambda x: x[0]
@@ -196,8 +197,7 @@ def add_annotationbox(im_path, x, y, rot_degree):
     else:
         indices = (0, min(2,int(midind/2)), midind-1, int((len(im_path)-midind)/2+midind-1), len(im_path)-1)
     if len(im_path) <= indices[-1]:
-        im_list = [im_path[i] for i in (0, len(indices)-1)]
-        pos = [pos[i] for i in (0, len(indices)-1)]
+        im_list = [im_path[i] for i in indices if i < len(im_path)-1]
     else:
         im_list = [im_path[i] for i in indices]
     xx = [int(im.split("/")[-1].split("_")[0]) for im in im_list]
@@ -439,7 +439,7 @@ if __name__ == "__main__":
 #    pool = Pool(40)
 #    print(branchids)
 #    for branchid in branchids:
-#        knownparams = get_known_params(branchid)
+ #       knownparams = get_known_params(branchid)
 #        pool.map(partial(stab_computation, branchid), knownparams)
 #        create_stability_figures(branchid)
 #    create_pictures()
