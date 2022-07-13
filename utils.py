@@ -56,7 +56,7 @@ def get_xybox(xy, xdist, ydist, pos):
     if pos == "6": return (xy[0]+xdist, xy[1])
     if pos == "7": return (xy[0]-xdist, xy[1]-ydist)
     if pos == "8": return (xy[0], xy[1]-ydist)
-    if pos == "9": return (xy[0], xy[1]+ydist)
+    if pos == "9": return (xy[0]+xdist, xy[1]-ydist)
     raise ValueError("pos has to be string in [1,9]")
 
 
@@ -64,5 +64,5 @@ def get_colors():
     return ('b', 'g', 'r', 'c', 'm', 'y', 'b', 'g', 'r', 'c', 'm', 'y')
 
 def get_linestyles():
-    return ('-', '-', '-', '-', '-', '-', '-', '--', '--', '--', '--', '--', '--', '--')
+    return ('-', '-', '-', '-', '-', '--', '-', '--', '--', '--', '--', '--', '--', '--')
     
