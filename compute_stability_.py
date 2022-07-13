@@ -27,7 +27,7 @@ from defcon import backend, StabilityTask
 from defcon.cli.common import fetch_bifurcation_problem
 from petsc4py import PETSc
 
-from utils import get_branches, get_colors, get_rot_degree_dict, get_image_dict, get_xybox
+from utils import get_branches, get_colors, get_linestyles, get_rot_degree_dict, get_image_dict, get_xybox
 
 #RB = __import__("rayleigh-benard")
 RB = __import__("linear_eigenvalue")
@@ -175,7 +175,6 @@ def get_data(path):
     return data
 
 def add_annotationbox(im_path, x, y, rot_degree):
-    import ipdb; ipdb.set_trace()
     l = len(x)
     zipped_list = list(zip(x,y))
     sort_key = lambda x: x[0]
@@ -197,7 +196,8 @@ def add_annotationbox(im_path, x, y, rot_degree):
     else:
         indices = (0, min(2,int(midind/2)), midind-1, int((len(im_path)-midind)/2+midind-1), len(im_path)-1)
     if len(im_path) <= indices[-1]:
-        im_list = [im_path[i] for i in indices if i < len(im_path)-1]
+        im_list = [im_path[i] for i in (0, len(indices)-1)]
+        pos = [pos[i] for i in (0, len(indices)-1)]
     else:
         im_list = [im_path[i] for i in indices]
     xx = [int(im.split("/")[-1].split("_")[0]) for im in im_list]
@@ -288,6 +288,8 @@ def plot_stability_figures():
                 raise ValueError("More than two plots per Graph are not possible")
         colors = get_colors()
         color = colors[int(b_key)-1]
+        linestyles = get_linestyles()
+        linestyle = linestyles[int(b_key)-1]
         for plot_idx, outer_list in enumerate(branchids_dict[b_key]):
             xdata = np.array([])
             yudata = np.array([])
@@ -328,9 +330,9 @@ def plot_stability_figures():
                 yrealdata[key] = yrealdata[key][argsort]
             for key in yimagdata:
                 yimagdata[key] = yimagdata[key][argsort]
-            fig_u.plot(xdata, yudata, color=color)
-            fig_T.plot(xdata, yTdata, color=color)
-            fig_B.plot(xdata, yBdata, color=color)
+            fig_u.plot(xdata, yudata, color=color, linestyle=linestyle)
+            fig_T.plot(xdata, yTdata, color=color, linestyle=linestyle)
+            fig_B.plot(xdata, yBdata, color=color, linestyle=linestyle)
             color3 = "b"
             for i in range(0, num_eigs):
                 try:
@@ -439,7 +441,7 @@ if __name__ == "__main__":
 #    pool = Pool(40)
 #    print(branchids)
 #    for branchid in branchids:
- #       knownparams = get_known_params(branchid)
+#        knownparams = get_known_params(branchid)
 #        pool.map(partial(stab_computation, branchid), knownparams)
 #        create_stability_figures(branchid)
 #    create_pictures()
