@@ -131,7 +131,7 @@ def create_pictures():
             problem.save_pvd(solution, pvd, params)
 
     print("Run the following command on your local machine:")
-    download_path = "laakmann@wolverine:" + os.getcwd()
+    download_path = "laakmann@vanisher:" + os.getcwd()
     pic_branches = []
     for branchid in branchids:
         mypath = os.path.join("paraview", str(branchid))
@@ -283,9 +283,21 @@ def plot_stability_figures():
             fig_stab_real = fig.add_subplot(grid[8:10, :4])
             fig_stab_imag = fig.add_subplot(grid[8:10, 4:])            
             fig_stab_real2 = fig.add_subplot(grid[10:12, :4])
-            fig_stab_imag2 = fig.add_subplot(grid[10:12, 4:])            
+            fig_stab_imag2 = fig.add_subplot(grid[10:12, 4:])
+        if len_branch == 3:
+            fig = plt.figure(figsize=(14,16))
+            grid = plt.GridSpec(14, 8, hspace=14, wspace=14)
+            fig_u = fig.add_subplot(grid[:4, :4])
+            fig_T = fig.add_subplot(grid[:4, 4:])
+            fig_B = fig.add_subplot(grid[4:8, 2:6])
+            fig_stab_real = fig.add_subplot(grid[8:10, :4])
+            fig_stab_imag = fig.add_subplot(grid[8:10, 4:])            
+            fig_stab_real2 = fig.add_subplot(grid[10:12, :4])
+            fig_stab_imag2 = fig.add_subplot(grid[10:12, 4:])
+            fig_stab_real3 = fig.add_subplot(grid[12:14, :4])
+            fig_stab_imag3 = fig.add_subplot(grid[12:14, 4:])
         else:
-                raise ValueError("More than two plots per Graph are not possible")
+                raise ValueError("More than three plots per Graph are not possible")
         colors = get_colors()
         color = colors[int(b_key)-1]
         linestyles = get_linestyles()
@@ -350,6 +362,9 @@ def plot_stability_figures():
                     elif plot_idx == 1:
                         fig_stab_real2.scatter(xdata_real, smooth_yrealdata, color=color3, marker='.')
                         fig_stab_imag2.scatter(xdata_imag, smooth_yimagdata, color=color3, marker='.')
+                    elif plot_idx == 2:
+                        fig_stab_real3.scatter(xdata_real, smooth_yrealdata, color=color3, marker='.')
+                        fig_stab_imag3.scatter(xdata_imag, smooth_yimagdata, color=color3, marker='.')
                 except FileNotFoundError:
                     print(f"Less than {num_eigs} eigenvalues found")
                 except ValueError:
@@ -397,7 +412,7 @@ def plot_stability_figures():
         fig_stab_real.axhline(0, color='black')
         fig_stab_real.set_xlim(xlims)
         fig_stab_imag.set_xlim(xlims)
-        if len_branch == 2:
+        if len_branch >= 2:
             fig_stab_real2.set_xlabel(r"$\mathrm{Ra}$")
             fig_stab_imag2.set_xlabel(r"$\mathrm{Ra}$")
             fig_stab_real2.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
@@ -406,7 +421,7 @@ def plot_stability_figures():
             y0 = fig_stab_real2.get_ylim()[0]
             fig_stab_real2.set_ylim(bottom=y0-2)
             y0 = fig_stab_imag2.get_ylim()[0]
-            fig_stab_imag2.set_ylim(bottom=y0-2)
+            #fig_stab_imag2.set_ylim(bottom=y0-2)
             if fig_stab_real2.get_ylim()[1] < 10.0:
 #                y0 = fig_stab_real2.get_ylim()[1]
                 fig_stab_real2.set_ylim(top=10)
@@ -414,17 +429,47 @@ def plot_stability_figures():
             fig_stab_real2.axhline(0, color='black')
             fig_stab_real2.set_xlim(xlims)
             fig_stab_imag2.set_xlim(xlims)
-#        fig_stab_imag.set_ylim(bottom=-0.001)
+            fig_stab_imag2.set_ylim(bottom=-0.001)
             real_ylim = list(fig_stab_real.get_ylim())
             imag_ylim = list(fig_stab_imag.get_ylim())
             real_ylim[0] = min(fig_stab_real.get_ylim()[0], fig_stab_real2.get_ylim()[0])
             real_ylim[1] = max(fig_stab_real.get_ylim()[1], fig_stab_real2.get_ylim()[1])
-            imag_ylim[0] = min(fig_stab_imag.get_ylim()[0], fig_stab_imag.get_ylim()[0])
-            imag_ylim[1] = max(fig_stab_imag.get_ylim()[1], fig_stab_imag.get_ylim()[1])
+            imag_ylim[0] = min(fig_stab_imag.get_ylim()[0], fig_stab_imag2.get_ylim()[0])
+            imag_ylim[1] = max(fig_stab_imag.get_ylim()[1], fig_stab_imag2.get_ylim()[1])
             fig_stab_real.set_ylim(real_ylim)
             fig_stab_imag.set_ylim(imag_ylim)
             fig_stab_real2.set_ylim(real_ylim)
             fig_stab_imag2.set_ylim(imag_ylim)
+        if len_branch >= 3:
+            fig_stab_real3.set_xlabel(r"$\mathrm{Ra}$")
+            fig_stab_imag3.set_xlabel(r"$\mathrm{Ra}$")
+            fig_stab_real3.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
+            fig_stab_imag3.set_ylabel(r"$\mathcal{I}(\lambda)$", rotation=0, labelpad=15)
+            fig_stab_imag3.set_ylim(bottom=0)
+            y0 = fig_stab_real3.get_ylim()[0]
+            fig_stab_real3.set_ylim(bottom=y0-2)
+            y0 = fig_stab_imag3.get_ylim()[0]
+            #fig_stab_imag3.set_ylim(bottom=y0-2)
+            if fig_stab_real3.get_ylim()[1] < 10.0:
+#                y0 = fig_stab_real2.get_ylim()[1]
+                fig_stab_real3.set_ylim(top=10)
+#                fig_stab_real2.set_ylim(bottom=y0-2)
+            fig_stab_real3.axhline(0, color='black')
+            fig_stab_real3.set_xlim(xlims)
+            fig_stab_imag3.set_xlim(xlims)
+            fig_stab_imag3.set_ylim(bottom=-0.001)
+            real_ylim = list(fig_stab_real.get_ylim())
+            imag_ylim = list(fig_stab_imag.get_ylim())
+            real_ylim[0] = min(fig_stab_real.get_ylim()[0], fig_stab_real3.get_ylim()[0])
+            real_ylim[1] = max(fig_stab_real.get_ylim()[1], fig_stab_real3.get_ylim()[1])
+            imag_ylim[0] = min(fig_stab_imag.get_ylim()[0], fig_stab_imag3.get_ylim()[0])
+            imag_ylim[1] = max(fig_stab_imag.get_ylim()[1], fig_stab_imag3.get_ylim()[1])
+            fig_stab_real.set_ylim(real_ylim)
+            fig_stab_imag.set_ylim(imag_ylim)
+            fig_stab_real2.set_ylim(real_ylim)
+            fig_stab_imag2.set_ylim(imag_ylim)
+            fig_stab_real3.set_ylim(real_ylim)
+            fig_stab_imag3.set_ylim(imag_ylim)
             
         plt.savefig(f'StabilityFigures/diagram_branch_{b_key}.png', dpi=800)
     
