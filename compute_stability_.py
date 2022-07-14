@@ -13,6 +13,7 @@ rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 10})
 rc('text', usetex=True)
 rc('lines', linewidth=0.7)
 rc('lines', markersize=3)
+plt.rcParams['ytick.right'] = True
 from matplotlib.offsetbox import *
 import matplotlib.image as mpimg
 from PIL import Image

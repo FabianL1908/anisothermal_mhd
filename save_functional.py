@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 14})
 rc('text', usetex=True)
+plt.rcParams['ytick.right'] = True
 
 from utils import get_colors, get_linestyles
 

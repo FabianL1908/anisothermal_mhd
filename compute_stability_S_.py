@@ -13,6 +13,7 @@ rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 10})
 rc('text', usetex=True)
 rc('lines', linewidth=0.7)
 rc('lines', markersize=3)
+plt.rcParams['ytick.right'] = True
 from matplotlib.offsetbox import *
 import matplotlib.image as mpimg
 from PIL import Image
@@ -46,7 +47,7 @@ path = "CSV/%d"
 
 comm = COMM_WORLD
 
-num_eigs = 10
+num_eigs = 6
 
 # Construct mono-3d problem
 problem = RB.EVRayleighBenardProblem()
@@ -154,15 +155,15 @@ def create_stability_figures(branchid):
                     data = list(csv.reader(f, delimiter=","))
             my_data[param] = np.array(data).astype(np.float32)
 
-    try:
-        for i in range(0, num_eigs):
+    for i in range(0, num_eigs):
+        try:
             reals = np.array([my_data[param][i][0] for param in params])
             imags = np.array([my_data[param][i][1] for param in params])
             params = np.array(params)
 
             np.savetxt(f"{path_stab}/{branchid}_real_{i}.csv", np.vstack((params, reals)).T, delimiter=",")            
             np.savetxt(f"{path_stab}/{branchid}_imag_{i}.csv", np.vstack((params, imags)).T, delimiter=",")
-    except IndexError:
+        except IndexError:
             print(f"Less than {num_eigs} eigenvalues found")
 
 def get_data(path):
@@ -272,7 +273,7 @@ def plot_stability_figures():
             fig_B = fig.add_subplot(grid[4:8, 2:6])
             fig_stab_real = fig.add_subplot(grid[8:, :4])
             fig_stab_imag = fig.add_subplot(grid[8:, 4:])
-        elif len_branch == 2 or len_branch==3:
+        elif len_branch == 2:
             fig = plt.figure(figsize=(12,12))
             grid = plt.GridSpec(12, 8, hspace=14, wspace=14)
             fig_u = fig.add_subplot(grid[:4, :4])
@@ -281,10 +282,22 @@ def plot_stability_figures():
             fig_stab_real = fig.add_subplot(grid[8:10, :4])
             fig_stab_imag = fig.add_subplot(grid[8:10, 4:])            
             fig_stab_real2 = fig.add_subplot(grid[10:12, :4])
-            fig_stab_imag2 = fig.add_subplot(grid[10:12, 4:])            
+            fig_stab_imag2 = fig.add_subplot(grid[10:12, 4:])
+        elif len_branch == 3:
+            fig = plt.figure(figsize=(14,16))
+            grid = plt.GridSpec(14, 8, hspace=14, wspace=14)
+            fig_u = fig.add_subplot(grid[:4, :4])
+            fig_T = fig.add_subplot(grid[:4, 4:])
+            fig_B = fig.add_subplot(grid[4:8, 2:6])
+            fig_stab_real = fig.add_subplot(grid[8:10, :4])
+            fig_stab_imag = fig.add_subplot(grid[8:10, 4:])            
+            fig_stab_real2 = fig.add_subplot(grid[10:12, :4])
+            fig_stab_imag2 = fig.add_subplot(grid[10:12, 4:])
+            fig_stab_real3 = fig.add_subplot(grid[12:14, :4])
+            fig_stab_imag3 = fig.add_subplot(grid[12:14, 4:])
         else:
             continue
-                #raise ValueError("More than two plots per Graph are not possible")
+                #raise ValueError("More than three plots per Graph are not possible")
         colors = get_colors()
         color = colors[int(b_key)-1]
         for plot_idx, outer_list in enumerate(branchids_dict[b_key]):
@@ -347,6 +360,9 @@ def plot_stability_figures():
                     elif plot_idx == 1:
                         fig_stab_real2.scatter(xdata_real, smooth_yrealdata, color=color3, marker='.')
                         fig_stab_imag2.scatter(xdata_imag, smooth_yimagdata, color=color3, marker='.')
+                    elif plot_idx == 2:
+                        fig_stab_real3.scatter(xdata_real, smooth_yrealdata, color=color3, marker='.')
+                        fig_stab_imag3.scatter(xdata_imag, smooth_yimagdata, color=color3, marker='.')                        
                 except FileNotFoundError:
                     print(f"Less than {num_eigs} eigenvalues found")
                 except ValueError:
@@ -395,7 +411,7 @@ def plot_stability_figures():
         fig_stab_real.axhline(0, color='black')
         fig_stab_real.set_xlim(xlims)
         fig_stab_imag.set_xlim(xlims)
-        if len_branch == 2:
+        if len_branch >= 2:
             fig_stab_real2.set_xlabel(r"$\mathrm{S}$")
             fig_stab_imag2.set_xlabel(r"$\mathrm{S}$")
             fig_stab_real2.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
@@ -404,7 +420,7 @@ def plot_stability_figures():
             y0 = fig_stab_real2.get_ylim()[0]
             fig_stab_real2.set_ylim(bottom=y0-2)
             y0 = fig_stab_imag2.get_ylim()[0]
-            fig_stab_imag2.set_ylim(bottom=y0-2)
+            #fig_stab_imag2.set_ylim(bottom=y0-2)
             if fig_stab_real2.get_ylim()[1] < 10.0:
 #                y0 = fig_stab_real2.get_ylim()[1]
                 fig_stab_real2.set_ylim(top=10)
@@ -412,18 +428,47 @@ def plot_stability_figures():
             fig_stab_real2.axhline(0, color='black')
             fig_stab_real2.set_xlim(xlims)
             fig_stab_imag2.set_xlim(xlims)
-#        fig_stab_imag.set_ylim(bottom=-0.001)
+            fig_stab_imag.set_ylim(bottom=-0.001)
             real_ylim = list(fig_stab_real.get_ylim())
             imag_ylim = list(fig_stab_imag.get_ylim())
             real_ylim[0] = min(fig_stab_real.get_ylim()[0], fig_stab_real2.get_ylim()[0])
             real_ylim[1] = max(fig_stab_real.get_ylim()[1], fig_stab_real2.get_ylim()[1])
-            imag_ylim[0] = min(fig_stab_imag.get_ylim()[0], fig_stab_imag.get_ylim()[0])
-            imag_ylim[1] = max(fig_stab_imag.get_ylim()[1], fig_stab_imag.get_ylim()[1])
+            imag_ylim[0] = min(fig_stab_imag.get_ylim()[0], fig_stab_imag2.get_ylim()[0])
+            imag_ylim[1] = max(fig_stab_imag.get_ylim()[1], fig_stab_imag2.get_ylim()[1])
             fig_stab_real.set_ylim(real_ylim)
             fig_stab_imag.set_ylim(imag_ylim)
             fig_stab_real2.set_ylim(real_ylim)
             fig_stab_imag2.set_ylim(imag_ylim)
-            
+        if len_branch >= 3:
+            fig_stab_real3.set_xlabel(r"$\mathrm{Ra}$")
+            fig_stab_imag3.set_xlabel(r"$\mathrm{Ra}$")
+            fig_stab_real3.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
+            fig_stab_imag3.set_ylabel(r"$\mathcal{I}(\lambda)$", rotation=0, labelpad=15)
+            fig_stab_imag3.set_ylim(bottom=0)
+            y0 = fig_stab_real3.get_ylim()[0]
+            fig_stab_real3.set_ylim(bottom=y0-2)
+            y0 = fig_stab_imag3.get_ylim()[0]
+            #fig_stab_imag3.set_ylim(bottom=y0-2)
+            if fig_stab_real3.get_ylim()[1] < 10.0:
+#                y0 = fig_stab_real2.get_ylim()[1]
+                fig_stab_real3.set_ylim(top=10)
+#                fig_stab_real2.set_ylim(bottom=y0-2)
+            fig_stab_real3.axhline(0, color='black')
+            fig_stab_real3.set_xlim(xlims)
+            fig_stab_imag3.set_xlim(xlims)
+            fig_stab_imag3.set_ylim(bottom=-0.001)
+            real_ylim = list(fig_stab_real.get_ylim())
+            imag_ylim = list(fig_stab_imag.get_ylim())
+            real_ylim[0] = min(fig_stab_real.get_ylim()[0], fig_stab_real3.get_ylim()[0])
+            real_ylim[1] = max(fig_stab_real.get_ylim()[1], fig_stab_real3.get_ylim()[1])
+            imag_ylim[0] = min(fig_stab_imag.get_ylim()[0], fig_stab_imag3.get_ylim()[0])
+            imag_ylim[1] = max(fig_stab_imag.get_ylim()[1], fig_stab_imag3.get_ylim()[1])
+            fig_stab_real.set_ylim(real_ylim)
+            fig_stab_imag.set_ylim(imag_ylim)
+            fig_stab_real2.set_ylim(real_ylim)
+            fig_stab_imag2.set_ylim(imag_ylim)
+            fig_stab_real3.set_ylim(real_ylim)
+            fig_stab_imag3.set_ylim(imag_ylim)
         plt.savefig(f'StabilityFigures/diagram_branch_{b_key}.png', dpi=800)
     
     
@@ -436,13 +481,13 @@ def plot_stability_figures():
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-    pool = Pool(40)
-    print(branchids)
+#    pool = Pool(40)
+#    print(branchids)
     for branchid in branchids:
-        knownparams = get_known_params(branchid)
-        pool.map(partial(stab_computation, branchid), knownparams)
+#        knownparams = get_known_params(branchid)
+#        pool.map(partial(stab_computation, branchid), knownparams)
         create_stability_figures(branchid)
-    create_pictures()
+#    create_pictures()
     plot_stability_figures()
 #    for branchid in [188]:
 #        knownparams = get_known_params(branchid)
