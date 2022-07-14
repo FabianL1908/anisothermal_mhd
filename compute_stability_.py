@@ -46,7 +46,7 @@ path = "CSV/%d"
 
 comm = COMM_WORLD
 
-num_eigs = 6
+num_eigs = 20
 
 # Construct mono-3d problem
 problem = RB.EVRayleighBenardProblem()
@@ -84,7 +84,7 @@ def get_known_params(branchid):
     params = knownparams_init
     knownparams = [p for p in knownparams if p[0] in params]
     #print(knownparams)
-    return knownparams    
+    return knownparams#[::5]
 
 def stab_computation(branchid, param):
 #    for param in [knownparams[0]]:
@@ -284,7 +284,7 @@ def plot_stability_figures():
             fig_stab_imag = fig.add_subplot(grid[8:10, 4:])            
             fig_stab_real2 = fig.add_subplot(grid[10:12, :4])
             fig_stab_imag2 = fig.add_subplot(grid[10:12, 4:])
-        if len_branch == 3:
+        elif len_branch == 3:
             fig = plt.figure(figsize=(14,16))
             grid = plt.GridSpec(14, 8, hspace=14, wspace=14)
             fig_u = fig.add_subplot(grid[:4, :4])
@@ -483,12 +483,12 @@ def plot_stability_figures():
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-#    pool = Pool(40)
-#    print(branchids)
-#    for branchid in branchids:
-#        knownparams = get_known_params(branchid)
-#        pool.map(partial(stab_computation, branchid), knownparams)
-#        create_stability_figures(branchid)
+    pool = Pool(60)
+    print(branchids)
+    for branchid in branchids:
+        knownparams = get_known_params(branchid)
+        pool.map(partial(stab_computation, branchid), knownparams)
+        create_stability_figures(branchid)
 #    create_pictures()
     plot_stability_figures()
 #    for branchid in [188]:
