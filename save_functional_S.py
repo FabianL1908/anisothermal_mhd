@@ -114,6 +114,48 @@ def save_functional():
         np.savetxt("diagram_T/%d.csv"%branchid, np.hstack((knownparams_S, NT)), delimiter=",")
         np.savetxt("diagram_B/%d.csv"%branchid, np.hstack((knownparams_S, NB)), delimiter=",")
 
+def get_data(dgrm_type, branchid):
+    with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r') as f:
+        data = list(csv.reader(f, delimiter=","))
+    data = np.array(data)
+    return data
+
+def write_data(dgrm_type, branchid, left, targetp, avg_val):
+    line = f"{targetp},{avg_val}"
+    if left:
+        with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r+') as f:
+            content = f.read()
+            f.seek(0, 0)
+            f.write(line.rstrip('\r\n') + '\n' + content)
+    else:
+        with open(f'diagram_{dgrm_type}/{branchid}.csv', 'a') as f:
+            f.write(line)
+
+def join_plots():
+    try:
+        with open('join_plots.csv', 'r') as f:
+            data = list(csv.reader(f, delimiter=","))
+    except:
+        return
+
+    for dat in data:
+        branchid_1, branchid_2, left, scale = dat
+        left = bool(int(left))
+        scale = float(scale)
+        for dgrm_type in ["u", "T", "B"]:
+            data1 = get_data(dgrm_type, branchid_1)
+            data2 = get_data(dgrm_type, branchid_2) 
+            endp1, val1 = data1[0] if left else data1[-1]
+            endp2, val2 = data2[0] if left else data2[-1]
+            if  endp1 != endp2:
+                endp1 = (float(endp1)+float(endp2))/2
+                endp2 = endp1
+            targetp = float(endp1) - scale*np.abs(float(data1[1][0]) - float(data1[0][0])) if left else float(endp1) + scale*np.abs(float(data1[-1][0]) - float(data1[0][0]))
+            avg_val = (float(val1) + float(val2))/2
+            write_data(dgrm_type, branchid_1, left, targetp, avg_val)
+            write_data(dgrm_type, branchid_2, left, targetp, avg_val)
+        
+
 def plot_diagram():
 #    fig = plt.figure()
 #    grid = plt.GridSpec(8, 8, hspace=2, wspace=2)
@@ -188,6 +230,7 @@ def plot_diagram():
 #        figures[idx].set_xticks(np.linspace(), np.max(data[0]), 5))
     plt.savefig(f'diagram_uTB.png', dpi=400, bbox_inches='tight')
             
-#save_functional()
+save_functional()
+join_plots()
 plot_diagram()
 #shutil.make_archive("/home/boulle/Documents/diagram_data", 'zip', "diagram_data")
