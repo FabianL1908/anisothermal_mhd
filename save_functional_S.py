@@ -150,7 +150,7 @@ def join_plots():
             if  endp1 != endp2:
                 endp1 = (float(endp1)+float(endp2))/2
                 endp2 = endp1
-            targetp = float(endp1) - scale*np.abs(float(data1[1][0]) - float(data1[0][0])) if left else float(endp1) + scale*np.abs(float(data1[-1][0]) - float(data1[0][0]))
+            targetp = float(endp1) - scale*np.abs(float(data1[1][0]) - float(data1[0][0])) if left else float(endp1) + scale*np.abs(float(data1[-1][0]) - float(data1[-2][0]))
             avg_val = (float(val1) + float(val2))/2
             write_data(dgrm_type, branchid_1, left, targetp, avg_val)
             write_data(dgrm_type, branchid_2, left, targetp, avg_val)
@@ -231,6 +231,6 @@ def plot_diagram():
     plt.savefig(f'diagram_uTB.png', dpi=400, bbox_inches='tight')
             
 save_functional()
-join_plots()
+#join_plots()
 plot_diagram()
 #shutil.make_archive("/home/boulle/Documents/diagram_data", 'zip', "diagram_data")
