@@ -35,13 +35,20 @@ RB = __import__("linear_eigenvalue")
 
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("--branchids", nargs='+', type=int, default=[-1])
+parser.add_argument("--mode", choices=["Ra", "S"], type=str, required=True)
 args, _ = parser.parse_known_args()
 branchids = args.branchids
+mode = args.mode
 
 targetparams = np.linspace(0, 10**5, 401)
 minp = 48500
 maxp = 55000
 targetparams = np.array([t for t in targetparams if (t >= minp and t <= maxp)])
+
+if mode == "Ra":
+    IDX = 0
+elif mode == "S":
+    IDX = 2
 
 path = "CSV/%d"
 
@@ -76,24 +83,32 @@ for k in solver_parameters:
 def get_known_params(branchid):
     # Parameters
     fixed_params = problem.target_parameter_values()
-    knownparams = io.known_parameters(fixed={"Pr": fixed_params["Pr"][0],
-                                             "S": fixed_params["S"][0],
-                                             "Pm": fixed_params["Pm"][0]}, branchid=branchid)
-    knownparams_init = np.array([l[0] for l in knownparams])
+    if mode == "Ra":
+        knownparams = io.known_parameters(fixed={"Pr": fixed_params["Pr"][0],
+                                                 "S": fixed_params["S"][0],
+                                                 "Pm": fixed_params["Pm"][0]}, branchid=branchid)
+    elif mode == "S":
+        knownparams = io.known_parameters(fixed={"Pr": fixed_params["Pr"][0],
+                                                 "Ra": fixed_params["Ra"][0],
+                                                 "Pm": fixed_params["Pm"][0]}, branchid=branchid)
+    knownparams_init = np.array([l[IDX] for l in knownparams])
     # if branchid == 284:
     #     knownparams = np.array([t for t in knownparams if (t>=36100)])
 #        params = knownparams_init[np.isclose(targetparams[:,None],knownparams_init).any(0)]
     params = knownparams_init
-    knownparams = [p for p in knownparams if p[0] in params]
+    knownparams = [p for p in knownparams if p[IDX] in params]
     #print(knownparams)
-    return knownparams#[::5]
+    if mode == "S":        
+        return knownparams[::3]
+    elif mode == "Ra":        
+        return knownparams
 
 def stab_computation(branchid, param):
 #    for param in [knownparams[0]]:
-    if os.path.exists(path%(branchid)+f"/{int(param[0])}.csv"):
+    if os.path.exists(path%(branchid)+f"/{int(param[IDX])}.csv"):
         print(f"Stability for branchid {branchid} and param {param} was already computed")
     else:
-        print("Computing stability for parameters %s, branchid = %d" % (str(param[0]), branchid),flush=True)
+        print("Computing stability for parameters %s, branchid = %d" % (str(param[IDX]), branchid),flush=True)
         consts = param
         #try:
 
@@ -112,11 +127,10 @@ def stab_computation(branchid, param):
         # Save the eigenvalues
         if not os.path.isdir(path%(branchid)):
             os.makedirs(path%(branchid))
-        np.savetxt(path%(branchid)+"/%.f.csv"%int(param[0]), x, delimiter=",")
+        np.savetxt(path%(branchid)+"/%.f.csv"%int(param[IDX]), x, delimiter=",")
 
 def create_pictures():
     for branchid in branchids:
-#        import ipdb; ipdb.set_trace()
         params = get_known_params(branchid)
         # only save num_plot plots
         num_plots = 20
@@ -129,7 +143,7 @@ def create_pictures():
             solution = io.fetch_solutions(params[idx], [branchid])[0]
             if not os.path.isdir(f"paraview/{branchid}"):
                 os.makedirs(f"paraview/{branchid}")
-            pvd = File(f"paraview/{branchid}/{int(params[idx][0])}.pvd")
+            pvd = File(f"paraview/{branchid}/{int(params[idx][IDX])}.pvd")
             problem.save_pvd(solution, pvd, params)
 
     print("Run the following command on your local machine:")
@@ -149,10 +163,11 @@ def extend_data(data, left, scale):
     else:
         ext = data[-1] + scale * (data[-1]-data[-2])
     return ext
-
+    
+        
 def create_stability_figures(branchid, b_key):
     params = get_known_params(branchid)
-    params = [param[0] for param in params]
+    params = [param[IDX] for param in params]
     path_stab = "StabilityFigures"
     if not os.path.isdir(path_stab):
         os.makedirs(path_stab)
@@ -165,15 +180,37 @@ def create_stability_figures(branchid, b_key):
                     data = list(csv.reader(f, delimiter=","))
             my_data[param] = np.array(data).astype(np.float32)
 
-    try:
-        for i in range(0, num_eigs):
+    for i in range(0, num_eigs):
+        try:
             reals = np.array([my_data[param][i][0] for param in params])
             imags = np.array([my_data[param][i][1] for param in params])
             params = np.array(params)
 
+#            need_change = False
+#            if branchid == 42:
+#                import ipdb; ipdb.set_trace()
+#            import ipdb; ipdb.set_trace()
+#            with open('join_plots.csv', 'r') as f:
+#                data = list(csv.reader(f, delimiter=","))
+#            for dat in data:
+#                if str(branchid) in dat:
+#                    left = bool(int(dat[2]))
+#                    scale = float(dat[3])
+#                    need_change = True
+#                    break
+#            if need_change:
+#                if left:
+#                    reals = np.append(extend_data(reals, left, scale), reals)
+#                    imags = np.append(extend_data(imags, left, scale), imags)
+#                    params = np.append(extend_data(params, left, scale), params)
+#                else:
+#                    reals = np.append(reals, extend_data(reals, left, scale))
+#                    imags = np.append(imags, extend_data(imags, left, scale))
+#                    params = np.append(extend_data(params, left, scale), params)
+
             np.savetxt(f"{path_stab}/{branchid}_real_{i}.csv", np.vstack((params, reals)).T, delimiter=",")            
             np.savetxt(f"{path_stab}/{branchid}_imag_{i}.csv", np.vstack((params, imags)).T, delimiter=",")
-    except IndexError:
+        except IndexError:
             print(f"Less than {num_eigs} eigenvalues found")
 
 def get_data(path):
@@ -193,10 +230,11 @@ def add_annotationbox(im_path, x, y, rot_degree):
     xmid = (x[-1] - x[0]) / 2 + x[0]
     midind = np.abs((xxx-xmid)).argmin()
 #    indices = (0, midind-1, len(im_path)-1)
+#    import ipdb; ipdb.set_trace()
     image_dict = get_image_dict()
     im_branches = [b.split('/')[1]+b.split('_')[1][0] for b in im_path]
+    im_branches = list(dict.fromkeys(im_branches))
 #    import ipdb; ipdb.set_trace()
-    im_branches = list(dict.fromkeys(im_branches)) 
     if im_branches[0] in image_dict:
         indices = []
         pos = []
@@ -206,8 +244,7 @@ def add_annotationbox(im_path, x, y, rot_degree):
     else:
         indices = (0, min(2,int(midind/2)), midind-1, int((len(im_path)-midind)/2+midind-1), len(im_path)-1)
     if len(im_path) <= indices[-1]:
-        im_list = [im_path[i] for i in (0, len(indices)-1)]
-        pos = [pos[i] for i in (0, len(indices)-1)]
+        im_list = [im_path[i] for i in indices if i < len(im_path)-1]
     else:
         im_list = [im_path[i] for i in indices]
     xx = [int(im.split("/")[-1].split("_")[0]) for im in im_list]
@@ -220,17 +257,16 @@ def add_annotationbox(im_path, x, y, rot_degree):
     xmin = np.min(x); xmax = np.max(x)
     xmid = (xmax+xmin)/2
     ab_list = []
-#    import ipdb; ipdb.set_trace()
     for i, xy in enumerate(xy_list):
         if im_branches[0] in image_dict:
             xybox = get_xybox(xy, 0.25*(xmid-xmin), 0.5*(ymid-ymin), pos[i])
         else:
-             if xy[1] < ymid:
-                 xybox = (xy[0], xy[1] + 0.5*(ymid-ymin))
-             else:
-                 xybox = (xy[0], xy[1] - 0.5*(ymid-ymin))
+            if xy[1] < ymid:
+                xybox = (xy[0], xy[1] + 0.5*(ymid-ymin))
+            else:
+                xybox = (xy[0], xy[1] - 0.5*(ymid-ymin))
         im = mpimg.imread(im_list[i])
-        if rot_degree >= 0:
+        if rot_degree > 0:
             im = ndimage.rotate(im, rot_degree)
         elif rot_degree == -1:
             im = np.fliplr(im)
@@ -310,13 +346,15 @@ def plot_stability_figures():
             fig_stab_real3 = fig.add_subplot(grid[12:14, :4])
             fig_stab_imag3 = fig.add_subplot(grid[12:14, 4:])
         else:
-                raise ValueError("More than three plots per Graph are not possible")
+            continue
+                #raise ValueError("More than three plots per Graph are not possible")
         colors = get_colors()
         color = colors[int(b_key)-1]
         linestyles = get_linestyles()
         linestyle = linestyles[int(b_key)-1]
         num_eigs = num_eigs_dict[b_key] if b_key in num_eigs_dict else num_eigs_default
-        num_eigs = int(num_eigs)        
+        num_eigs = int(num_eigs)
+
         for plot_idx, outer_list in enumerate(branchids_dict[b_key]):
             xdata = np.array([])
             yudata = np.array([])
@@ -337,6 +375,7 @@ def plot_stability_figures():
                 yTdata = np.append(yTdata, data[1])
                 data = get_data(f'diagram_B/{branchid}.csv')
                 yBdata = np.append(yBdata, data[1])
+
                 for i in range(0, num_eigs):
                     if i >= max_num_branch:
                         continue
@@ -353,6 +392,7 @@ def plot_stability_figures():
             yudata = yudata[argsort]
             yTdata = yTdata[argsort]
             yBdata = yBdata[argsort]
+                
             for key in yrealdata:
                 yrealdata[key] = yrealdata[key][argsort]
             for key in yimagdata:
@@ -391,7 +431,6 @@ def plot_stability_figures():
                     if np.abs(real_pos[imags>=0][-1]) < threshold:
                         plt_points.append([i+1, real_pos[imags>=0][-1], imags[imags>=0][-1]])
                     num_pos = new_num_pos
-                
             fig_u.plot(xdata, yudata, color=color, linestyle=linestyle)
             fig_T.plot(xdata, yTdata, color=color, linestyle=linestyle)
             fig_B.plot(xdata, yBdata, color=color, linestyle=linestyle)
@@ -419,7 +458,7 @@ def plot_stability_figures():
                     for i, (x, im) in enumerate(zip(highlight_x, highlight_imag)):            
                         fig_stab_imag3.scatter(x, im, color=colors[i], marker='.', s=150)
             except:
-                pass            
+                pass
             for i in range(0, num_eigs):
                 try:
 #                    with warnings.catch_warnings():
@@ -438,7 +477,7 @@ def plot_stability_figures():
                         fig_stab_imag2.scatter(xdata_imag, smooth_yimagdata, color=color3, marker='.')
                     elif plot_idx == 2:
                         fig_stab_real3.scatter(xdata_real, smooth_yrealdata, color=color3, marker='.')
-                        fig_stab_imag3.scatter(xdata_imag, smooth_yimagdata, color=color3, marker='.')
+                        fig_stab_imag3.scatter(xdata_imag, smooth_yimagdata, color=color3, marker='.')                        
                 except FileNotFoundError:
                     print(f"Less than {num_eigs} eigenvalues found")
                 except ValueError:
@@ -460,20 +499,22 @@ def plot_stability_figures():
             ab_list = add_annotationbox(B_image_files, xdata, yBdata, rot_degree_dict[int(b_key)])
             for ab in ab_list:
                 fig_B.add_artist(ab)
-        fig_u.set_xlabel(r"$\mathrm{Ra}$")
+        xlabel_str = r"$\mathrm{" + mode + "}$"
+        fig_u.set_xlabel(xlabel_str)
 #        import matplotlib.ticker as ticker
 #        fig_u.set_major_locator(ticker.MultipleLocator(1))
-        fig_T.set_xlabel(r"$\mathrm{Ra}$")
-        fig_B.set_xlabel(r"$\mathrm{Ra}$")
+        fig_T.set_xlabel(xlabel_str)
+        fig_B.set_xlabel(xlabel_str)
         fig_u.set_ylabel(problem.functionals()[0][2], rotation=0, labelpad=15)
         fig_T.set_ylabel(problem.functionals()[1][2], rotation=0, labelpad=15)
         fig_B.set_ylabel(problem.functionals()[2][2], rotation=0, labelpad=15)
-        fig_T.axhline(1/3, color='black', linewidth=0.6, linestyle="--")
-
+        Tx, Ty = fig_T.get_ylim()
+        if Tx < 1/3 and Ty > 1/3:
+            fig_T.axhline(1/3, color='black', linewidth=0.6, linestyle="--")
         xlims = fig_u.get_xlim()
          
-        fig_stab_real.set_xlabel(r"$\mathrm{Ra}$")
-        fig_stab_imag.set_xlabel(r"$\mathrm{Ra}$")
+        fig_stab_real.set_xlabel(xlabel_str)
+        fig_stab_imag.set_xlabel(xlabel_str)
         fig_stab_real.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
         fig_stab_imag.set_ylabel(r"$\mathcal{I}(\lambda)$", rotation=0, labelpad=15)
         y0 = fig_stab_real.get_ylim()[0]
@@ -485,12 +526,13 @@ def plot_stability_figures():
             fig_stab_real.set_ylim(top=10)
 #            fig_stab_real.set_ylim(bottom=y0-2)
         fig_stab_imag.set_ylim(bottom=0)
+        fig_stab_imag.set_ylim(top=max(fig_stab_imag.get_ylim()[1], 0.01))
         fig_stab_real.axhline(0, color='black')
         fig_stab_real.set_xlim(xlims)
         fig_stab_imag.set_xlim(xlims)
         if len_branch >= 2:
-            fig_stab_real2.set_xlabel(r"$\mathrm{Ra}$")
-            fig_stab_imag2.set_xlabel(r"$\mathrm{Ra}$")
+            fig_stab_real2.set_xlabel(xlabel_str)
+            fig_stab_imag2.set_xlabel(xlabel_str)
             fig_stab_real2.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
             fig_stab_imag2.set_ylabel(r"$\mathcal{I}(\lambda)$", rotation=0, labelpad=15)
             fig_stab_imag2.set_ylim(bottom=0)
@@ -517,8 +559,8 @@ def plot_stability_figures():
             fig_stab_real2.set_ylim(real_ylim)
             fig_stab_imag2.set_ylim(imag_ylim)
         if len_branch >= 3:
-            fig_stab_real3.set_xlabel(r"$\mathrm{Ra}$")
-            fig_stab_imag3.set_xlabel(r"$\mathrm{Ra}$")
+            fig_stab_real3.set_xlabel(xlabel_str)
+            fig_stab_imag3.set_xlabel(xlabel_str)
             fig_stab_real3.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
             fig_stab_imag3.set_ylabel(r"$\mathcal{I}(\lambda)$", rotation=0, labelpad=15)
             fig_stab_imag3.set_ylim(bottom=0)
@@ -546,7 +588,6 @@ def plot_stability_figures():
             fig_stab_imag2.set_ylim(imag_ylim)
             fig_stab_real3.set_ylim(real_ylim)
             fig_stab_imag3.set_ylim(imag_ylim)
-            
         plt.savefig(f'StabilityFigures/diagram_branch_{b_key}.png', dpi=800)
 
 def get_b_key(branchid):
@@ -556,7 +597,6 @@ def get_b_key(branchid):
             if branchid in l:
                 return b_key
     raise ValueError(f"Branchid {branchid} not found")
-
     
 # Branch
 #branchids = [44]
@@ -567,11 +607,12 @@ def get_b_key(branchid):
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-#    pool = Pool(60)
+#    pool = Pool(40)
 #    print(branchids)
     for branchid in branchids:
 #        knownparams = get_known_params(branchid)
 #        pool.map(partial(stab_computation, branchid), knownparams)
+#        import ipdb; ipdb.set_trace()        
         b_key = get_b_key(branchid)
         create_stability_figures(branchid, b_key)
 #    create_pictures()

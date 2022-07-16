@@ -72,8 +72,8 @@ def get_xybox(xy, xdist, ydist, pos):
 
 
 def get_colors():
-    return ('b', 'g', 'r', 'c', 'm', 'y', 'b', 'g', 'r', 'c', 'm', 'y')
+    return ('b', 'g', 'r', 'c', 'm', 'y', 'orange', 'g', 'r', 'c', 'm', 'y')
 
 def get_linestyles():
-    return ('-', '-', '-', '-', '-', '--', '-', '--', '--', '--', '--', '--', '--', '--')
+    return ('-', '-', '-', '-', '-', '--', '--', '--', '--', '--', '--', '--', '--', '--')
     

@@ -32,13 +32,14 @@ RB = __import__("rayleigh-benard")
 
 #branchids = [44]
 #branchids = [34,54,63,64,89]
+
 def get_branches():
     branch_dict = {}
-    with open('branches3.csv', newline='') as csvfile:
+    with open('branches.csv', newline='') as csvfile:
         data = csv.reader(csvfile, delimiter=',')
         for row in data:
             branch_dict[row[0]] = []
-    with open('branches3.csv', newline='') as csvfile:
+    with open('branches.csv', newline='') as csvfile:
         data = csv.reader(csvfile, delimiter=',')
         for row in data:
             int_row = [int(r) for r in row[1:]]
@@ -47,18 +48,26 @@ def get_branches():
 
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("--branchids", nargs='+', type=int, default=[-1])
+parser.add_argument("--mode", choices=["Ra", "S"], type=str, required=True)
 args, _ = parser.parse_known_args()
 branchids = args.branchids
+mode = args.mode
 
 #branchids = [0, 38, 2, 42, 166, 161]
 
 comm = COMM_WORLD
+
+if mode == "Ra":
+    IDX = 0
+elif mode == "S":
+    IDX = 2
 
 # Construct mono-3d problem
 problem = RB.RayleighBenardProblem()
 mesh = problem.mesh(comm=comm)
 Z = problem.function_space(mesh)
 functionals = problem.functionals()
+
 
 if branchids == [-1]:
     branchids = get_branches()
@@ -81,17 +90,22 @@ def save_functional():
     for branchid in branchids:
         # Parameters
         fixed_params = problem.target_parameter_values()
-        knownparams = io.known_parameters(fixed={"Pr": fixed_params["Pr"][0],
-                                                 "S": fixed_params["S"][0],
-                                                 "Pm": fixed_params["Pm"][0]}, branchid=branchid)
-        knownparams_Ra = np.array([l[0] for l in knownparams])
+        if mode == "Ra":
+            knownparams = io.known_parameters(fixed={"Pr": fixed_params["Pr"][0],
+                                                     "S": fixed_params["S"][0],
+                                                     "Pm": fixed_params["Pm"][0]}, branchid=branchid)
+        elif mode == "S":
+            knownparams = io.known_parameters(fixed={"Pr": fixed_params["Pr"][0],
+                                                     "Ra": fixed_params["Ra"][0],
+                                                     "Pm": fixed_params["Pm"][0]}, branchid=branchid)[::3]
+        knownparams_S = np.array([l[IDX] for l in knownparams])
         Nu = np.array([])
         NT = np.array([])
         NB = np.array([])
         for param in knownparams:
             print(param)
             print("Computing functional for parameters %s, branchid = %d" %
-                  (str(param[0]), branchid), flush=True)
+                  (str(param[IDX]), branchid), flush=True)
             solution = io.fetch_solutions(param, [branchid])[0]
             funcs = []
             for functional in functionals:
@@ -104,13 +118,13 @@ def save_functional():
             NB = np.append(NB, funcs[2])
 
         # save to text file
-        knownparams_Ra = knownparams_Ra.reshape((len(knownparams_Ra), 1))
+        knownparams_S = knownparams_S.reshape((len(knownparams_S), 1))
         Nu = Nu.reshape((len(Nu), 1))
         NT = NT.reshape((len(NT), 1))
         NB = NB.reshape((len(NB), 1))
-        np.savetxt("diagram_u/%d.csv"%branchid, np.hstack((knownparams_Ra, Nu)), delimiter=",")
-        np.savetxt("diagram_T/%d.csv"%branchid, np.hstack((knownparams_Ra, NT)), delimiter=",")
-        np.savetxt("diagram_B/%d.csv"%branchid, np.hstack((knownparams_Ra, NB)), delimiter=",")
+        np.savetxt("diagram_u/%d.csv"%branchid, np.hstack((knownparams_S, Nu)), delimiter=",")
+        np.savetxt("diagram_T/%d.csv"%branchid, np.hstack((knownparams_S, NT)), delimiter=",")
+        np.savetxt("diagram_B/%d.csv"%branchid, np.hstack((knownparams_S, NB)), delimiter=",")
 
 def get_data(dgrm_type, branchid):
     with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r') as f:
@@ -148,7 +162,7 @@ def join_plots():
             if  endp1 != endp2:
                 endp1 = (float(endp1)+float(endp2))/2
                 endp2 = endp1
-            targetp = float(endp1) - scale*np.abs(float(data1[1][0]) - float(data1[0][0])) if left else float(endp1) + scale*np.abs(float(data1[-1][0]) - float(data1[0][0]))
+            targetp = float(endp1) - scale*np.abs(float(data1[1][0]) - float(data1[0][0])) if left else float(endp1) + scale*np.abs(float(data1[-1][0]) - float(data1[-2][0]))
             avg_val = (float(val1) + float(val2))/2
             write_data(dgrm_type, branchid_1, left, targetp, avg_val)
             write_data(dgrm_type, branchid_2, left, targetp, avg_val)
@@ -173,6 +187,7 @@ def plot_diagram():
             for outer_list in branchid_dict[b_key]:
                 full_data = np.array([]).reshape((0,2))
                 for branchid in outer_list:
+                    print(branchid)
                     with open(f'diagram_{dgrm_type}/{branchid}.csv', 'r') as f:
                         data = list(csv.reader(f, delimiter=","))
                     data = np.array(data)
@@ -181,11 +196,15 @@ def plot_diagram():
                 full_data = full_data[full_data[:, 0].argsort()]
                 full_data = full_data.T
                 plt.plot(full_data[0], full_data[1], color=color, label=f"{b_key}", linestyle=linestyle)
-        plt.xlabel(r"$\mathrm{Ra}$")
+        xlabel_str = r"$\mathrm{" + mode + "}$"
+        plt.xlabel(xlabel_str)
         plt.ylabel(functionals[idx][2], rotation=0, labelpad=15)
         if dgrm_type == "u":
             plt.ylim(bottom=0)
-        plt.xlim(right=10**5)
+        if dgrm_type == "B":
+            plt.ylim(bottom=1)
+        right = 10**3 if mode == "S" else 10**5
+        plt.xlim(right=right)
         plt.xlim(left=0)
 #        plt.tight_layout()
         handles, labels = plt.gca().get_legend_handles_labels()
@@ -216,16 +235,17 @@ def plot_diagram():
                     data = data.astype(np.float32)
                     data = data.T
                 figures[idx].plot(data[0], data[1], color=color)
-            figures[idx].set_xlabel(r"$\mathrm{Ra}$")
+            figures[idx].set_xlabel(xlabel_str)
             figures[idx].set_ylabel(functionals[idx][2], rotation=0, labelpad=15)
             figures[idx].set_ylim(bottom=0)
-            figures[idx].set_xlim(right=10**5)
+            right = 10**3 if mode == "S" else 10**5
+            figures[idx].set_xlim(right=right)
             figures[idx].set_xlim(left=0)
 #    plt.tight_layout()
 #        figures[idx].set_xticks(np.linspace(), np.max(data[0]), 5))
     plt.savefig(f'diagram_uTB.png', dpi=400, bbox_inches='tight')
             
-#save_functional()
+save_functional()
 #join_plots()
 plot_diagram()
 #shutil.make_archive("/home/boulle/Documents/diagram_data", 'zip', "diagram_data")
