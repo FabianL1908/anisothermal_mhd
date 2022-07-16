@@ -239,8 +239,9 @@ def add_annotationbox(im_path, x, y, rot_degree):
         indices = []
         pos = []
         for im_b in im_branches:
-            indices += [int(f) for f in image_dict[im_b][::2]]
-            pos += [f for f in image_dict[im_b][1::2]]
+            if image_dict[im_b] != ['']:
+                indices += [int(f) for f in image_dict[im_b][::2]]
+                pos += [f for f in image_dict[im_b][1::2]]
     else:
         indices = (0, min(2,int(midind/2)), midind-1, int((len(im_path)-midind)/2+midind-1), len(im_path)-1)
     if len(im_path) <= indices[-1]:
