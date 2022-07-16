@@ -1,5 +1,7 @@
 import itertools
 import csv
+import os
+from pathlib import Path
 
 
 def get_branches():
@@ -17,6 +19,7 @@ def get_branches():
 
 def get_image_dict():
     image_dict = {}
+    Path(os.path.join(os.getcwd(), 'images.csv')).touch(exist_ok=True)
     with open('images.csv', newline='') as csvfile:
         data = csv.reader(csvfile, delimiter=',')
         for row in data:
@@ -25,6 +28,7 @@ def get_image_dict():
 
 def get_num_eigs():
     num_eigs_dict = {}
+    Path(os.path.join(os.getcwd(), 'num_eigs.csv')).touch(exist_ok=True)
     with open('num_eigs.csv', newline='') as csvfile:
         data = csv.reader(csvfile, delimiter=',')
         for row in data:

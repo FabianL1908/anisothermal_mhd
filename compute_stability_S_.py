@@ -395,7 +395,8 @@ def plot_stability_figures():
             r = yreal[0]
             real_pos = r[r>=0]
             imags = yimag[0][r>=0]
-            if np.abs(real_pos[imags>=0][-1]) < 5.0:
+            threshold = 5.0
+            if real_pos.shape[0] > 0 and np.abs(real_pos[imags>=0][-1]) < threshold:
                 plt_points.append([0, real_pos[imags>=0][-1], imags[imags>=0][-1]])            
             num_pos = get_num_pos(yreal[0])
             for i, r in enumerate(yreal[1:]):
@@ -406,12 +407,14 @@ def plot_stability_figures():
                     prev_r = yreal[i]
                     real_pos = prev_r[prev_r>=0]
                     imags = yimag[i+1][prev_r>=0]
-                    plt_points.append([i+1, real_pos[imags>=0][-1], imags[imags>=0][-1]])
+                    if np.abs(real_pos[imags>=0][-1]) < threshold:
+                        plt_points.append([i+1, real_pos[imags>=0][-1], imags[imags>=0][-1]])
                     num_pos = new_num_pos    
                 if new_num_pos > num_pos:
                     real_pos = r[r>=0]
                     imags = yimag[i+1][r>=0]
-                    plt_points.append([i+1, real_pos[imags>=0][-1], imags[imags>=0][-1]])
+                    if np.abs(real_pos[imags>=0][-1]) < threshold:
+                        plt_points.append([i+1, real_pos[imags>=0][-1], imags[imags>=0][-1]])
                     num_pos = new_num_pos
             fig_u.plot(xdata, yudata, color=color, linestyle=linestyle)
             fig_T.plot(xdata, yTdata, color=color, linestyle=linestyle)
@@ -489,6 +492,7 @@ def plot_stability_figures():
         fig_u.set_ylabel(problem.functionals()[0][2], rotation=0, labelpad=15)
         fig_T.set_ylabel(problem.functionals()[1][2], rotation=0, labelpad=15)
         fig_B.set_ylabel(problem.functionals()[2][2], rotation=0, labelpad=15)
+        fig_T.axhline(1/3, color='black', linewidth=0.6, linestyle="--")
         xlims = fig_u.get_xlim()
          
         fig_stab_real.set_xlabel(r"$\mathrm{S}$")
