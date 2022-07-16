@@ -23,6 +23,13 @@ def get_image_dict():
             image_dict[row[0]] = [r for r in row[1:]]
     return image_dict
 
+def get_num_eigs():
+    num_eigs_dict = {}
+    with open('num_eigs.csv', newline='') as csvfile:
+        data = csv.reader(csvfile, delimiter=',')
+        for row in data:
+            num_eigs_dict[row[0]] = row[1]
+    return num_eigs_dict
 
 def get_rot_degree_dict():
     rot_degree_dict = {}

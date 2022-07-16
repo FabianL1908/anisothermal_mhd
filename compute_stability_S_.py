@@ -28,7 +28,7 @@ from defcon import backend, StabilityTask
 from defcon.cli.common import fetch_bifurcation_problem
 from petsc4py import PETSc
 
-from utils import get_branches, get_colors, get_rot_degree_dict, get_image_dict, get_xybox
+from utils import get_branches, get_colors, get_linestyles, get_rot_degree_dict, get_image_dict, get_xybox, get_num_eigs
 
 #RB = __import__("rayleigh-benard")
 RB = __import__("linear_eigenvalue")
@@ -47,7 +47,8 @@ path = "CSV/%d"
 
 comm = COMM_WORLD
 
-num_eigs = 10
+num_eigs_default = 6
+num_eigs_dict = get_num_eigs()
 
 # Construct mono-3d problem
 problem = RB.EVRayleighBenardProblem()
@@ -149,15 +150,16 @@ def extend_data(data, left, scale):
     return ext
     
         
-def create_stability_figures(branchid):
+def create_stability_figures(branchid, b_key):
     params = get_known_params(branchid)
     params = [param[2] for param in params]
     path_stab = "StabilityFigures"
     if not os.path.isdir(path_stab):
         os.makedirs(path_stab)
+    num_eigs = num_eigs_dict[b_key] if b_key in num_eigs_dict else num_eigs_default
+    num_eigs = int(num_eigs)
 
     my_data = {}
-
     for param in params:
             with open(f'CSV/{branchid}/{int(param)}.csv', 'r') as f:
                     data = list(csv.reader(f, delimiter=","))
@@ -332,9 +334,12 @@ def plot_stability_figures():
             continue
                 #raise ValueError("More than three plots per Graph are not possible")
         colors = get_colors()
-        color = colors[int(b_key)-1
+        color = colors[int(b_key)-1]
         linestyles = get_linestyles()
         linestyle = linestyles[int(b_key)-1]
+        num_eigs = num_eigs_dict[b_key] if b_key in num_eigs_dict else num_eigs_default
+        num_eigs = int(num_eigs)
+
         for plot_idx, outer_list in enumerate(branchids_dict[b_key]):
             xdata = np.array([])
             yudata = np.array([])
@@ -355,6 +360,7 @@ def plot_stability_figures():
                 yTdata = np.append(yTdata, data[1])
                 data = get_data(f'diagram_B/{branchid}.csv')
                 yBdata = np.append(yBdata, data[1])
+
                 for i in range(0, num_eigs):
                     if i >= max_num_branch:
                         continue
@@ -394,7 +400,7 @@ def plot_stability_figures():
             num_pos = get_num_pos(yreal[0])
             for i, r in enumerate(yreal[1:]):
                 new_num_pos = get_num_pos(r)
-                print(new_num_pos)
+#                print(new_num_pos)
                 if new_num_pos < num_pos:
 #                    import ipdb; ipdb.set_trace()
                     prev_r = yreal[i]
@@ -417,7 +423,7 @@ def plot_stability_figures():
                 highlight_imag = [p[2] for p in plt_points]
                 color_order = [2,1,3,4,5]
                 colors = get_colors()
-,                colors = [colors[idx] for idx in color_order]
+                colors = [colors[idx] for idx in color_order]
                 if plot_idx == 0:
                     for i, (x, r) in enumerate(zip(highlight_x, highlight_real)):            
                         fig_stab_real.scatter(x, r, color=colors[i], marker='.', s=150)
@@ -561,7 +567,14 @@ def plot_stability_figures():
             fig_stab_real3.set_ylim(real_ylim)
             fig_stab_imag3.set_ylim(imag_ylim)
         plt.savefig(f'StabilityFigures/diagram_branch_{b_key}.png', dpi=800)
-    
+
+def get_b_key(branchid):
+    branchid_dict = get_branches()
+    for b_key in branchid_dict:
+        for l in branchid_dict[b_key]:
+            if branchid in l:
+                return b_key
+    raise ValueError(f"Branchid {branchid} not found")
     
 # Branch
 #branchids = [44]
@@ -572,12 +585,14 @@ def plot_stability_figures():
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-    pool = Pool(40)
-    print(branchids)
+#    pool = Pool(40)
+#    print(branchids)
     for branchid in branchids:
-        knownparams = get_known_params(branchid)
-        pool.map(partial(stab_computation, branchid), knownparams)
-        create_stability_figures(branchid)
+#        knownparams = get_known_params(branchid)
+#        pool.map(partial(stab_computation, branchid), knownparams)
+#        import ipdb; ipdb.set_trace()        
+        b_key = get_b_key(branchid)
+        create_stability_figures(branchid, b_key)
 #    create_pictures()
     plot_stability_figures()
 #    for branchid in [188]:
