@@ -47,7 +47,7 @@ path = "CSV/%d"
 
 comm = COMM_WORLD
 
-num_eigs = 6
+num_eigs = 10
 
 # Construct mono-3d problem
 problem = RB.EVRayleighBenardProblem()
@@ -140,6 +140,14 @@ def create_pictures():
             pic_branches.append(branchid)
     print(f"mkdir paraview; for branchid in {' '.join([str(num) for num in pic_branches])}; do scp -r {download_path}/paraview/$branchid paraview; done; scp {download_path}/create_png.py .; /Applications/ParaView-5.10.1.app/Contents/bin/pvpython create_png.py; rm -rf paraview/*/*.pvd; rm -rf paraview/*/*.vtu; scp -r paraview/* {download_path}/paraview; rm -rf paraview/*", flush=True)
     input("Hit Enter when you are done:")
+
+def extend_data(data, left, scale):
+    if left:
+        ext = data[0] - scale * (data[1]-data[0])
+    else:
+        ext = data[-1] + scale * (data[-1]-data[-2])
+    return ext
+    
         
 def create_stability_figures(branchid):
     params = get_known_params(branchid)
@@ -160,6 +168,28 @@ def create_stability_figures(branchid):
             reals = np.array([my_data[param][i][0] for param in params])
             imags = np.array([my_data[param][i][1] for param in params])
             params = np.array(params)
+
+#            need_change = False
+#            if branchid == 42:
+#                import ipdb; ipdb.set_trace()
+#            import ipdb; ipdb.set_trace()
+#            with open('join_plots.csv', 'r') as f:
+#                data = list(csv.reader(f, delimiter=","))
+#            for dat in data:
+#                if str(branchid) in dat:
+#                    left = bool(int(dat[2]))
+#                    scale = float(dat[3])
+#                    need_change = True
+#                    break
+#            if need_change:
+#                if left:
+#                    reals = np.append(extend_data(reals, left, scale), reals)
+#                    imags = np.append(extend_data(imags, left, scale), imags)
+#                    params = np.append(extend_data(params, left, scale), params)
+#                else:
+#                    reals = np.append(reals, extend_data(reals, left, scale))
+#                    imags = np.append(imags, extend_data(imags, left, scale))
+#                    params = np.append(extend_data(params, left, scale), params)
 
             np.savetxt(f"{path_stab}/{branchid}_real_{i}.csv", np.vstack((params, reals)).T, delimiter=",")            
             np.savetxt(f"{path_stab}/{branchid}_imag_{i}.csv", np.vstack((params, imags)).T, delimiter=",")
@@ -252,6 +282,9 @@ def smooth_data(xdata, arr):
 #    arr = np.delete(arr, ind)
     return (xdata, arr)
 
+def get_num_pos(arr):
+    return np.sum(arr >= 0, axis=0)
+
 def plot_stability_figures():
     branchids_dict = get_branches()
     rot_degree_dict = get_rot_degree_dict()
@@ -299,7 +332,9 @@ def plot_stability_figures():
             continue
                 #raise ValueError("More than three plots per Graph are not possible")
         colors = get_colors()
-        color = colors[int(b_key)-1]
+        color = colors[int(b_key)-1
+        linestyles = get_linestyles()
+        linestyle = linestyles[int(b_key)-1]
         for plot_idx, outer_list in enumerate(branchids_dict[b_key]):
             xdata = np.array([])
             yudata = np.array([])
@@ -336,14 +371,70 @@ def plot_stability_figures():
             yudata = yudata[argsort]
             yTdata = yTdata[argsort]
             yBdata = yBdata[argsort]
+                
             for key in yrealdata:
                 yrealdata[key] = yrealdata[key][argsort]
             for key in yimagdata:
                 yimagdata[key] = yimagdata[key][argsort]
-            fig_u.plot(xdata, yudata, color=color)
-            fig_T.plot(xdata, yTdata, color=color)
-            fig_B.plot(xdata, yBdata, color=color)
+
+            my_len = yrealdata[list(yrealdata.keys())[0]].shape[0]
+            yreal = np.empty((0, my_len))
+            yimag = np.empty((0, my_len))
+            for key in yrealdata:
+                yreal = np.vstack([yreal, yrealdata[key]])
+                yimag = np.vstack([yimag, yimagdata[key]])
+            yreal = yreal.T
+            yimag = yimag.T
+            plt_points = []
+            r = yreal[0]
+            real_pos = r[r>=0]
+            imags = yimag[0][r>=0]
+            if np.abs(real_pos[imags>=0][-1]) < 5.0:
+                plt_points.append([0, real_pos[imags>=0][-1], imags[imags>=0][-1]])            
+            num_pos = get_num_pos(yreal[0])
+            for i, r in enumerate(yreal[1:]):
+                new_num_pos = get_num_pos(r)
+                print(new_num_pos)
+                if new_num_pos < num_pos:
+#                    import ipdb; ipdb.set_trace()
+                    prev_r = yreal[i]
+                    real_pos = prev_r[prev_r>=0]
+                    imags = yimag[i+1][prev_r>=0]
+                    plt_points.append([i+1, real_pos[imags>=0][-1], imags[imags>=0][-1]])
+                    num_pos = new_num_pos    
+                if new_num_pos > num_pos:
+                    real_pos = r[r>=0]
+                    imags = yimag[i+1][r>=0]
+                    plt_points.append([i+1, real_pos[imags>=0][-1], imags[imags>=0][-1]])
+                    num_pos = new_num_pos
+            fig_u.plot(xdata, yudata, color=color, linestyle=linestyle)
+            fig_T.plot(xdata, yTdata, color=color, linestyle=linestyle)
+            fig_B.plot(xdata, yBdata, color=color, linestyle=linestyle)
             color3 = "b"
+            try:
+                highlight_x = [xdata[p[0]] for p in plt_points]
+                highlight_real = [p[1] for p in plt_points]
+                highlight_imag = [p[2] for p in plt_points]
+                color_order = [2,1,3,4,5]
+                colors = get_colors()
+,                colors = [colors[idx] for idx in color_order]
+                if plot_idx == 0:
+                    for i, (x, r) in enumerate(zip(highlight_x, highlight_real)):            
+                        fig_stab_real.scatter(x, r, color=colors[i], marker='.', s=150)
+                    for i, (x, im) in enumerate(zip(highlight_x, highlight_imag)):            
+                        fig_stab_imag.scatter(x, im, color=colors[i], marker='.', s=150)
+                if plot_idx == 1:
+                    for i, (x, r) in enumerate(zip(highlight_x, highlight_real)):            
+                        fig_stab_real2.scatter(x, r, color=colors[i], marker='.', s=150)
+                    for i, (x, im) in enumerate(zip(highlight_x, highlight_imag)):            
+                        fig_stab_imag2.scatter(x, im, color=colors[i], marker='.', s=150)
+                if plot_idx == 2:
+                    for i, (x, r) in enumerate(zip(highlight_x, highlight_real)):            
+                        fig_stab_real3.scatter(x, r, color=colors[i], marker='.', s=150)
+                    for i, (x, im) in enumerate(zip(highlight_x, highlight_imag)):            
+                        fig_stab_imag3.scatter(x, im, color=colors[i], marker='.', s=150)
+            except:
+                pass
             for i in range(0, num_eigs):
                 try:
 #                    with warnings.catch_warnings():
@@ -481,11 +572,11 @@ def plot_stability_figures():
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-#    pool = Pool(40)
-#    print(branchids)
+    pool = Pool(40)
+    print(branchids)
     for branchid in branchids:
-#        knownparams = get_known_params(branchid)
-#        pool.map(partial(stab_computation, branchid), knownparams)
+        knownparams = get_known_params(branchid)
+        pool.map(partial(stab_computation, branchid), knownparams)
         create_stability_figures(branchid)
 #    create_pictures()
     plot_stability_figures()
