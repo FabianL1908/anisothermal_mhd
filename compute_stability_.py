@@ -5,6 +5,7 @@ import os
 import gc
 import csv
 import argparse
+import shutil
 from functools import partial
 from multiprocessing import Pool
 import matplotlib.pyplot as plt
@@ -98,6 +99,9 @@ def get_known_params(branchid):
     params = knownparams_init
     knownparams = [p for p in knownparams if p[IDX] in params]
     #print(knownparams)
+    data = get_data(f'diagram_u/{branchid}.csv')
+    return data[0]
+
     if mode == "S":        
         return knownparams[::3]
     elif mode == "Ra":        
@@ -105,29 +109,53 @@ def get_known_params(branchid):
 
 def stab_computation(branchid, param):
 #    for param in [knownparams[0]]:
-    if os.path.exists(path%(branchid)+f"/{int(param[IDX])}.csv"):
+    if os.path.exists(path%(branchid)+f"/{int(param)}.csv"):
         print(f"Stability for branchid {branchid} and param {param} was already computed")
     else:
-        print("Computing stability for parameters %s, branchid = %d" % (str(param[IDX]), branchid),flush=True)
+        print("Computing stability for parameters %s, branchid = %d" % (str(param), branchid),flush=True)
         consts = param
-        #try:
+        try:
+            solution = io.fetch_solutions(consts, [branchid])[0]
+            d = problem.compute_stability(consts, branchid, solution)
+            evals = list(map(complex, d["eigenvalues"]))
+            RpointsMu = np.array([l.real for l in evals])
+            RpointsMu = RpointsMu.reshape(len(RpointsMu),1)
+            IpointsMu = np.array([l.imag for l in evals])
+            IpointsMu = IpointsMu.reshape(len(IpointsMu),1)
+            x = np.hstack((RpointsMu,IpointsMu))
 
-        solution = io.fetch_solutions(consts, [branchid])[0]
-        d = problem.compute_stability(consts, branchid, solution)
-        evals = list(map(complex, d["eigenvalues"]))
-        RpointsMu = np.array([l.real for l in evals])
-        RpointsMu = RpointsMu.reshape(len(RpointsMu),1)
-        IpointsMu = np.array([l.imag for l in evals])
-        IpointsMu = IpointsMu.reshape(len(IpointsMu),1)
-        x = np.hstack((RpointsMu,IpointsMu))
+            # Sort x by largest real part
+            x = np.flipud(x[np.lexsort(np.fliplr(x).T)])
 
-        # Sort x by largest real part
-        x = np.flipud(x[np.lexsort(np.fliplr(x).T)])
+            # Save the eigenvalues
+            if not os.path.isdir(path%(branchid)):
+                os.makedirs(path%(branchid))
+            np.savetxt(path%(branchid)+"/%.f.csv"%int(param), x, delimiter=",")
+        except:
+            pass
 
-        # Save the eigenvalues
-        if not os.path.isdir(path%(branchid)):
-            os.makedirs(path%(branchid))
-        np.savetxt(path%(branchid)+"/%.f.csv"%int(param[IDX]), x, delimiter=",")
+def join_plots(branchid):
+    try:
+        with open('join_plots.csv', 'r') as f:
+            data = list(csv.reader(f, delimiter=","))
+    except:
+        return
+    params = get_known_params(branchid)
+    for dat in data:
+        branchid_1, branchid_2, left, scale = dat
+        if str(branchid) in [branchid_1, branchid_2]:
+            left = bool(int(left))
+            scale = float(scale)
+            if left:
+                load_file = path%(branchid)+"/%.f.csv"%int(params[1])
+                save_file = path%(branchid)+"/%.f.csv"%int(params[0])
+            else:
+                load_file = path%(branchid)+"/%.f.csv"%int(params[-2])
+                save_file = path%(branchid)+"/%.f.csv"%int(params[-1])
+            try:
+                shutil.copyfile(load_file, save_file)
+            except:
+                pass
 
 def create_pictures():
     for branchid in branchids:
@@ -143,7 +171,7 @@ def create_pictures():
             solution = io.fetch_solutions(params[idx], [branchid])[0]
             if not os.path.isdir(f"paraview/{branchid}"):
                 os.makedirs(f"paraview/{branchid}")
-            pvd = File(f"paraview/{branchid}/{int(params[idx][IDX])}.pvd")
+            pvd = File(f"paraview/{branchid}/{int(params[idx])}.pvd")
             problem.save_pvd(solution, pvd, params)
 
     print("Run the following command on your local machine:")
@@ -167,7 +195,7 @@ def extend_data(data, left, scale):
         
 def create_stability_figures(branchid, b_key):
     params = get_known_params(branchid)
-    params = [param[IDX] for param in params]
+    params = [param for param in params]
     path_stab = "StabilityFigures"
     if not os.path.isdir(path_stab):
         os.makedirs(path_stab)
@@ -251,7 +279,12 @@ def add_annotationbox(im_path, x, y, rot_degree):
     xx = [int(im.split("/")[-1].split("_")[0]) for im in im_list]
 #    xy_list = [zipped_list[ind] for i, ind in enumerate(indices) if int(zipped_list[ind][0]) == xx[i]]
     xy_list = [f for f in zipped_list if int(f[0]) in xx]
-    xy_list = list(set(xy_list))
+    xy_list_ = []
+    for i in range(len(xy_list)-1):
+        if int(xy_list[i][0]) != int(xy_list[i+1][0]):
+            xy_list_.append(xy_list[i])
+    xy_list_.append(xy_list[-1])
+    xy_list = list(set(xy_list_))
     xy_list = sorted(xy_list, key=sort_key)
     ymin = np.min(y); ymax = np.max(y)
     ymid = (ymax+ymin)/2
@@ -609,11 +642,12 @@ def get_b_key(branchid):
 #stab_computation(branchids)
 if __name__ == "__main__":
 #    pool = Pool(40)
-#    print(branchids)
+    print(branchids)
     for branchid in branchids:
-#        knownparams = get_known_params(branchid)
+        knownparams = get_known_params(branchid)
 #        pool.map(partial(stab_computation, branchid), knownparams)
-#        import ipdb; ipdb.set_trace()        
+#        import ipdb; ipdb.set_trace()
+        join_plots(branchid)
         b_key = get_b_key(branchid)
         create_stability_figures(branchid, b_key)
 #    create_pictures()
