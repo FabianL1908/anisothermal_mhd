@@ -141,7 +141,7 @@ def write_data(dgrm_type, branchid, left, targetp, avg_val):
             f.write(line.rstrip('\r\n') + '\n' + content)
     else:
         with open(f'diagram_{dgrm_type}/{branchid}.csv', 'a') as f:
-            f.write(line)
+            f.write(line + '\n')
 
 def join_plots():
     try:
@@ -159,14 +159,22 @@ def join_plots():
             data2 = get_data(dgrm_type, branchid_2) 
             endp1, val1 = data1[0] if left else data1[-1]
             endp2, val2 = data2[0] if left else data2[-1]
-            if  endp1 != endp2:
+            if endp1 == endp2:
                 endp1 = (float(endp1)+float(endp2))/2
                 endp2 = endp1
-            targetp = float(endp1) - scale*np.abs(float(data1[1][0]) - float(data1[0][0])) if left else float(endp1) + scale*np.abs(float(data1[-1][0]) - float(data1[-2][0]))
-            avg_val = (float(val1) + float(val2))/2
-            write_data(dgrm_type, branchid_1, left, targetp, avg_val)
-            write_data(dgrm_type, branchid_2, left, targetp, avg_val)
-        
+                targetp = float(endp1) - scale*np.abs(float(data1[1][0]) - float(data1[0][0])) if left else float(endp1) + scale*np.abs(float(data1[-1][0]) - float(data1[-2][0]))
+                avg_val = (float(val1) + float(val2))/2
+                write_data(dgrm_type, branchid_1, left, targetp, avg_val)
+                write_data(dgrm_type, branchid_2, left, targetp, avg_val)
+            else:
+                bigger_endp = endp2 if endp1 < endp2 else endp1
+                smaller_branchid = branchid_1 if endp1 < endp2 else branchid_2
+                bigger_val = val2 if endp1 < endp2 else val1
+                avg_p = (float(endp1)+float(endp2))/2 + scale*(float(endp1)-float(endp2))/2
+                avg_val = (float(val1) + float(val2))/2
+                write_data(dgrm_type, smaller_branchid, left, avg_p, avg_val)
+                write_data(dgrm_type, smaller_branchid, left, bigger_endp, bigger_val)
+               
 
 def plot_diagram():
 #    fig = plt.figure()
@@ -246,6 +254,6 @@ def plot_diagram():
     plt.savefig(f'diagram_uTB.png', dpi=400, bbox_inches='tight')
             
 save_functional()
-#join_plots()
+join_plots()
 plot_diagram()
 #shutil.make_archive("/home/boulle/Documents/diagram_data", 'zip', "diagram_data")
