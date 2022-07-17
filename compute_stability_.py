@@ -10,7 +10,7 @@ from functools import partial
 from multiprocessing import Pool
 import matplotlib.pyplot as plt
 from matplotlib import rc
-rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 10})
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 12})
 rc('text', usetex=True)
 rc('lines', linewidth=0.7)
 rc('lines', markersize=3)
@@ -351,7 +351,7 @@ def plot_stability_figures():
         len_branch = len(branchids_dict[b_key])
         if len_branch == 1:
             fig = plt.figure(figsize=(10,8))
-            grid = plt.GridSpec(10, 8, hspace=14, wspace=14)
+            grid = plt.GridSpec(10, 8, top=0.96, bottom=0.1, hspace=30, wspace=20)
             fig_u = fig.add_subplot(grid[:4, :4])
             fig_T = fig.add_subplot(grid[:4, 4:])
             fig_B = fig.add_subplot(grid[4:8, 2:6])
@@ -622,7 +622,7 @@ def plot_stability_figures():
             fig_stab_imag2.set_ylim(imag_ylim)
             fig_stab_real3.set_ylim(real_ylim)
             fig_stab_imag3.set_ylim(imag_ylim)
-        plt.savefig(f'StabilityFigures/diagram_branch_{b_key}.png', dpi=800)
+        plt.savefig(f'StabilityFigures/diagram_branch_{b_key}.png', dpi=400)
 
 def get_b_key(branchid):
     branchid_dict = get_branches()
@@ -641,11 +641,11 @@ def get_b_key(branchid):
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-#    pool = Pool(40)
+    pool = Pool(40)
     print(branchids)
     for branchid in branchids:
         knownparams = get_known_params(branchid)
-#        pool.map(partial(stab_computation, branchid), knownparams)
+        pool.map(partial(stab_computation, branchid), knownparams)
 #        import ipdb; ipdb.set_trace()
         join_plots(branchid)
         b_key = get_b_key(branchid)
