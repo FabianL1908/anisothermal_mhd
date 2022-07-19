@@ -14,7 +14,7 @@ from defcon.cli.common import fetch_bifurcation_problem
 from petsc4py import PETSc
 import matplotlib.pyplot as plt
 from matplotlib import rc
-rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 16})
 rc('text', usetex=True)
 
 RB = __import__("linear_eigenvalue")
@@ -39,9 +39,9 @@ opts = PETSc.Options()
 for k in solver_parameters:
     opts[k] = solver_parameters[k]
 
-Ras = linspace(10**3, 10**5, 400)
+Ras = linspace(10**3, 10**5, 300)
 Pr = 1.0
-S = 1.0
+S = 1000.0
 Pm = 1.0
 
 def compute(Ra):
