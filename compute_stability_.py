@@ -102,10 +102,10 @@ def get_known_params(branchid):
     data = get_data(f'diagram_u/{branchid}.csv')
     return data[0]
 
-    if mode == "S":        
-        return knownparams[::3]
-    elif mode == "Ra":        
-        return knownparams
+#    if mode == "S":        
+#        return knownparams[::3]
+#    elif mode == "Ra":        
+#        return knownparams
 
 def stab_computation(branchid, param):
 #    for param in [knownparams[0]]:
@@ -113,26 +113,27 @@ def stab_computation(branchid, param):
         print(f"Stability for branchid {branchid} and param {param} was already computed")
     else:
         print("Computing stability for parameters %s, branchid = %d" % (str(param), branchid),flush=True)
-        consts = param
-        try:
-            solution = io.fetch_solutions(consts, [branchid])[0]
-            d = problem.compute_stability(consts, branchid, solution)
-            evals = list(map(complex, d["eigenvalues"]))
-            RpointsMu = np.array([l.real for l in evals])
-            RpointsMu = RpointsMu.reshape(len(RpointsMu),1)
-            IpointsMu = np.array([l.imag for l in evals])
-            IpointsMu = IpointsMu.reshape(len(IpointsMu),1)
-            x = np.hstack((RpointsMu,IpointsMu))
+        consts = [max(y[0], y[-1]) for x, y in problem.target_parameter_values().items()]
+        consts[IDX] = param
+        #try:
+        solution = io.fetch_solutions(consts, [branchid])[0]
+        d = problem.compute_stability(consts, branchid, solution)
+        evals = list(map(complex, d["eigenvalues"]))
+        RpointsMu = np.array([l.real for l in evals])
+        RpointsMu = RpointsMu.reshape(len(RpointsMu),1)
+        IpointsMu = np.array([l.imag for l in evals])
+        IpointsMu = IpointsMu.reshape(len(IpointsMu),1)
+        x = np.hstack((RpointsMu,IpointsMu))
 
-            # Sort x by largest real part
-            x = np.flipud(x[np.lexsort(np.fliplr(x).T)])
+        # Sort x by largest real part
+        x = np.flipud(x[np.lexsort(np.fliplr(x).T)])
 
-            # Save the eigenvalues
-            if not os.path.isdir(path%(branchid)):
-                os.makedirs(path%(branchid))
-            np.savetxt(path%(branchid)+"/%.f.csv"%int(param), x, delimiter=",")
-        except:
-            pass
+        # Save the eigenvalues
+        if not os.path.isdir(path%(branchid)):
+            os.makedirs(path%(branchid))
+        np.savetxt(path%(branchid)+"/%.f.csv"%int(param), x, delimiter=",")
+        #except:
+        #    pass
 
 def join_plots(branchid):
     try:
@@ -168,7 +169,9 @@ def create_pictures():
         if not os.path.isdir("paraview"):
             os.makedirs("paraview")
         for idx in params_idxs:
-            solution = io.fetch_solutions(params[idx], [branchid])[0]
+            consts = [max(y[0], y[-1]) for x, y in problem.target_parameter_values().items()]
+            consts[IDX] = params[idx]
+            solution = io.fetch_solutions(consts, [branchid])[0]
             if not os.path.isdir(f"paraview/{branchid}"):
                 os.makedirs(f"paraview/{branchid}")
             pvd = File(f"paraview/{branchid}/{int(params[idx])}.pvd")
@@ -245,7 +248,7 @@ def get_data(path):
     with open(path, 'r') as f:
         data = list(csv.reader(f, delimiter=","))
     data = np.array(data)
-    data = data.astype(np.float32)
+    data = data.astype(np.float64)
     data = data.T
     return data
 
@@ -641,18 +644,31 @@ def get_b_key(branchid):
 # branchids = [64]
 #stab_computation(branchids)
 if __name__ == "__main__":
-#    pool = Pool(40)
-#    print(branchids)
+    pool = Pool(40)
+    print(branchids)
     for branchid in branchids:
-#        knownparams = get_known_params(branchid)
+        knownparams = get_known_params(branchid)
 #        pool.map(partial(stab_computation, branchid), knownparams)
 #        import ipdb; ipdb.set_trace()
         join_plots(branchid)
+        b_key = get_b_key(branchid)
+        create_stability_figures(branchid, b_key)
+ #   create_pictures()
+    plot_stability_figures()
+
+#    for branchid in [316]:
+#        knownparams = get_known_params(branchid)
+#        import ipdb; ipdb.set_trace()
+#        for kp in knownparams:
+#            stab_computation(branchid, kp)
+#        join_plots(branchid)
 #        b_key = get_b_key(branchid)
 #        create_stability_figures(branchid, b_key)
 #    create_pictures()
-    plot_stability_figures()
-#    for branchid in [188]:
+#    plot_stability_figures()
+
+
+    #    for branchid in [188]:
 #        knownparams = get_known_params(branchid)
 #        pool.map(partial(stab_computation, branchid), knownparams)
 #        create_stability_figures(branchid)
