@@ -355,19 +355,30 @@ def smooth_data(xdata, arr):
 def get_num_pos(arr):
     return np.sum(arr >= 0, axis=0)
 
-def in_join_plots(outer_list):
+def mark_boundary_eigs(outer_list, orientation, yreal, yimag, plt_idx):
     try:
-        with open('join_plots.csv', 'r') as f:
+        with open('mark_eigs.csv', 'r') as f:
             data = list(csv.reader(f, delimiter=","))
     except:
         return
-    params = get_known_params(branchid)
     for dat in data:
-        branchid_1, branchid_2, left, scale = dat
+        branchid, orient, pos = dat
         for ol in outer_list:
-            if str(ol) in [branchid_1, branchid_2]:
-                left = bool(int(left))
-                return "left" if left else "right"
+            if str(ol) == branchid and orient == orientation:
+#                if branchid == "259":
+#                    import ipdb; ipdb.set_trace()
+                if orientation == "left":
+                    idx = 0 if yreal[0][0] < MY_INF else 1
+                elif orientation == "right":
+                    idx = -1 if yreal[-1][0] < MY_INF else -2
+    #            import ipdb; ipdb.set_trace()
+                r = yreal[idx]
+                threshold = 0.0 if pos == "up" else 10.0
+                real_pos = r[r>=-threshold]
+                imags = yimag[idx][r>=-threshold]
+                min_ind = np.argmin(np.abs(real_pos[imags>=0]))
+                 #if np.abs(real_pos[imags>=0][min_ind]) < threshold:
+                return [plt_idx, real_pos[imags>=0][min_ind], imags[imags>=0][min_ind]]
     return None
 
 
@@ -481,20 +492,22 @@ def plot_stability_figures():
             idx1 = 0 if yreal[0][0] < MY_INF else 1
 #            import ipdb; ipdb.set_trace()
             r = yreal[idx1]
-            real_pos = r[r>=0]
-            imags = yimag[idx1][r>=0]
             threshold = 5.0
-            if in_join_plots(outer_list) == "left":
-                if np.abs(real_pos[imags>=0][-1]):
-                    plt_points.append([0, real_pos[imags>=0][-1], imags[imags>=0][-1]])
-                else:
-                    plt_points.append([0, yreal[idx1][0], yimag[idx1][0]])    
+            real_pos = r[r>=-threshold]
+            imags = yimag[idx1][r>=-threshold]
+            bdry_marker = mark_boundary_eigs(outer_list, "left", yreal, yimag, 0)
+            if bdry_marker:
+                plt_points.append(bdry_marker)
+                #else:
+                #    plt_points.append([0, yreal[idx1][0], yimag[idx1][0]])    
             elif (real_pos.shape[0] > 0 and np.abs(real_pos[imags>=0][-1]) < threshold):
                 plt_points.append([0, real_pos[imags>=0][-1], imags[imags>=0][-1]])
 
 
             num_pos = get_num_pos(yreal[idx1])
             for i, r in enumerate(yreal[1:]):
+#                if 80 in outer_list or 66 in outer_list:
+#                    continue
                 new_num_pos = get_num_pos(r)
 #                print(new_num_pos)
                 if new_num_pos < num_pos:
@@ -516,14 +529,14 @@ def plot_stability_figures():
             idx2 = -1 if yreal[-1][0] < MY_INF else -2
 #            import ipdb; ipdb.set_trace()
             r = yreal[idx2]
-            real_pos = r[r>=0]
-            imags = yimag[idx2][r>=0]
             threshold = 5.0
-            if in_join_plots(outer_list) == "right":
-                if np.abs(real_pos[imags>=0][-1]):
-                    plt_points.append([i+1, real_pos[imags>=0][-1], imags[imags>=0][-1]])
-                else:
-                    plt_points.append([i+1, yreal[idx1][0], yimag[idx1][0]])    
+            real_pos = r[r>=-threshold]
+            imags = yimag[idx2][r>=-threshold]
+            bdry_marker = mark_boundary_eigs(outer_list, "right", yreal, yimag, i+1)
+            if bdry_marker:
+                plt_points.append(bdry_marker)
+                #else:
+                #    plt_points.append([0, yreal[idx1][0], yimag[idx1][0]])    
             elif (real_pos.shape[0] > 0 and np.abs(real_pos[imags>=0][-1]) < threshold):
                 plt_points.append([i+1, real_pos[imags>=0][-1], imags[imags>=0][-1]])
 
