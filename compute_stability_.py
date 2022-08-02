@@ -41,6 +41,8 @@ args, _ = parser.parse_known_args()
 branchids = args.branchids
 mode = args.mode
 
+MY_INF = 10**8
+
 targetparams = np.linspace(0, 10**5, 401)
 minp = 48500
 maxp = 55000
@@ -115,25 +117,34 @@ def stab_computation(branchid, param):
         print("Computing stability for parameters %s, branchid = %d" % (str(param), branchid),flush=True)
         consts = [max(y[0], y[-1]) for x, y in problem.target_parameter_values().items()]
         consts[IDX] = param
-        #try:
-        solution = io.fetch_solutions(consts, [branchid])[0]
-        d = problem.compute_stability(consts, branchid, solution)
-        evals = list(map(complex, d["eigenvalues"]))
-        RpointsMu = np.array([l.real for l in evals])
-        RpointsMu = RpointsMu.reshape(len(RpointsMu),1)
-        IpointsMu = np.array([l.imag for l in evals])
-        IpointsMu = IpointsMu.reshape(len(IpointsMu),1)
-        x = np.hstack((RpointsMu,IpointsMu))
+        try:
+            solution = io.fetch_solutions(consts, [branchid])[0]
+            d = problem.compute_stability(consts, branchid, solution)
+            evals = list(map(complex, d["eigenvalues"]))
+            RpointsMu = np.array([l.real for l in evals])
+            RpointsMu = RpointsMu.reshape(len(RpointsMu),1)
+            IpointsMu = np.array([l.imag for l in evals])
+            IpointsMu = IpointsMu.reshape(len(IpointsMu),1)
+            x = np.hstack((RpointsMu,IpointsMu))
 
-        # Sort x by largest real part
-        x = np.flipud(x[np.lexsort(np.fliplr(x).T)])
+            # Sort x by largest real part
+            x = np.flipud(x[np.lexsort(np.fliplr(x).T)])
 
-        # Save the eigenvalues
-        if not os.path.isdir(path%(branchid)):
-            os.makedirs(path%(branchid))
-        np.savetxt(path%(branchid)+"/%.f.csv"%int(param), x, delimiter=",")
-        #except:
-        #    pass
+            # Save the eigenvalues
+            if not os.path.isdir(path%(branchid)):
+                os.makedirs(path%(branchid))
+            np.savetxt(path%(branchid)+"/%.f.csv"%int(param), x, delimiter=",")
+        except:
+            pass
+
+def fill_with_nan(load_file, save_file):
+    with open(load_file, 'r') as f:
+         data = list(csv.reader(f, delimiter=","))
+    with open(save_file, 'w') as f:
+        for dat in data:
+            f.write(f"{MY_INF},{MY_INF}")
+            f.write('\n')
+         
 
 def join_plots(branchid):
     try:
@@ -154,7 +165,11 @@ def join_plots(branchid):
                 load_file = path%(branchid)+"/%.f.csv"%int(params[-2])
                 save_file = path%(branchid)+"/%.f.csv"%int(params[-1])
             try:
-                shutil.copyfile(load_file, save_file)
+#                if os.path.exists(save_file):
+#                    os.remove(save_file)
+#                open(save_file, 'a').close()
+                #shutil.copyfile(load_file, save_file)
+                fill_with_nan(load_file, save_file)
             except:
                 pass
 
@@ -242,6 +257,7 @@ def create_stability_figures(branchid, b_key):
             np.savetxt(f"{path_stab}/{branchid}_real_{i}.csv", np.vstack((params, reals)).T, delimiter=",")            
             np.savetxt(f"{path_stab}/{branchid}_imag_{i}.csv", np.vstack((params, imags)).T, delimiter=",")
         except IndexError:
+            import ipdb; ipdb.set_trace()
             print(f"Less than {num_eigs} eigenvalues found")
 
 def get_data(path):
@@ -338,6 +354,22 @@ def smooth_data(xdata, arr):
 
 def get_num_pos(arr):
     return np.sum(arr >= 0, axis=0)
+
+def in_join_plots(outer_list):
+    try:
+        with open('join_plots.csv', 'r') as f:
+            data = list(csv.reader(f, delimiter=","))
+    except:
+        return
+    params = get_known_params(branchid)
+    for dat in data:
+        branchid_1, branchid_2, left, scale = dat
+        for ol in outer_list:
+            if str(ol) in [branchid_1, branchid_2]:
+                left = bool(int(left))
+                return "left" if left else "right"
+    return None
+
 
 def plot_stability_figures():
     branchids_dict = get_branches()
@@ -444,13 +476,24 @@ def plot_stability_figures():
             yreal = yreal.T
             yimag = yimag.T
             plt_points = []
-            r = yreal[0]
+            
+            # color left point
+            idx1 = 0 if yreal[0][0] < MY_INF else 1
+#            import ipdb; ipdb.set_trace()
+            r = yreal[idx1]
             real_pos = r[r>=0]
-            imags = yimag[0][r>=0]
+            imags = yimag[idx1][r>=0]
             threshold = 5.0
-            if real_pos.shape[0] > 0 and np.abs(real_pos[imags>=0][-1]) < threshold:
-                plt_points.append([0, real_pos[imags>=0][-1], imags[imags>=0][-1]])            
-            num_pos = get_num_pos(yreal[0])
+            if in_join_plots(outer_list) == "left":
+                if np.abs(real_pos[imags>=0][-1]):
+                    plt_points.append([0, real_pos[imags>=0][-1], imags[imags>=0][-1]])
+                else:
+                    plt_points.append([0, yreal[idx1][0], yimag[idx1][0]])    
+            elif (real_pos.shape[0] > 0 and np.abs(real_pos[imags>=0][-1]) < threshold):
+                plt_points.append([0, real_pos[imags>=0][-1], imags[imags>=0][-1]])
+
+
+            num_pos = get_num_pos(yreal[idx1])
             for i, r in enumerate(yreal[1:]):
                 new_num_pos = get_num_pos(r)
 #                print(new_num_pos)
@@ -468,6 +511,22 @@ def plot_stability_figures():
                     if np.abs(real_pos[imags>=0][-1]) < threshold:
                         plt_points.append([i+1, real_pos[imags>=0][-1], imags[imags>=0][-1]])
                     num_pos = new_num_pos
+
+            # color right point
+            idx2 = -1 if yreal[-1][0] < MY_INF else -2
+#            import ipdb; ipdb.set_trace()
+            r = yreal[idx2]
+            real_pos = r[r>=0]
+            imags = yimag[idx2][r>=0]
+            threshold = 5.0
+            if in_join_plots(outer_list) == "right":
+                if np.abs(real_pos[imags>=0][-1]):
+                    plt_points.append([i+1, real_pos[imags>=0][-1], imags[imags>=0][-1]])
+                else:
+                    plt_points.append([i+1, yreal[idx1][0], yimag[idx1][0]])    
+            elif (real_pos.shape[0] > 0 and np.abs(real_pos[imags>=0][-1]) < threshold):
+                plt_points.append([i+1, real_pos[imags>=0][-1], imags[imags>=0][-1]])
+
             fig_u.plot(xdata, yudata, color=color, linestyle=linestyle)
             fig_T.plot(xdata, yTdata, color=color, linestyle=linestyle)
             fig_B.plot(xdata, yBdata, color=color, linestyle=linestyle)
@@ -495,15 +554,26 @@ def plot_stability_figures():
                     for i, (x, im) in enumerate(zip(highlight_x, highlight_imag)):            
                         fig_stab_imag3.scatter(x, im, color=colors[i], marker='.', s=150)
             except:
+                import ipdb; ipdb.set_trace()
                 pass
+            #import ipdb; ipdb.set_trace()
             for i in range(0, num_eigs):
                 try:
 #                    with warnings.catch_warnings():
 #                        warnings.simplefilter("ignore", category=RuntimeWarning)
-                    if len(yrealdata[i]) == 0 or np.mean(yrealdata[i]) > 400:
+                    if len(yrealdata[i]) == 0: #or np.mean(yrealdata[i]) > 400:
                         continue
-                    xdata_real, smooth_yrealdata = smooth_data(xdata, yrealdata[i]) 
-                    xdata_imag, smooth_yimagdata = smooth_data(xdata, yimagdata[i]) 
+                    xdata_real, smooth_yrealdata = smooth_data(xdata, yrealdata[i])
+                    xdata_imag, smooth_yimagdata = smooth_data(xdata, yimagdata[i])
+                    msk = smooth_yrealdata < MY_INF
+                    xdata_real = xdata_real[msk]
+                    smooth_yrealdata = smooth_yrealdata[msk]
+                    xdata_imag = xdata_imag[msk]
+                    smooth_yimagdata = smooth_yimagdata[msk]
+
+                    #if False in msk:
+                    #import ipdb; ipdb.set_trace()
+                    
                     if plot_idx == 0:
 #                        if b_key == '1':
 #                            import ipdb; ipdb.set_trace()
