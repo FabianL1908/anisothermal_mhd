@@ -535,12 +535,12 @@ def plot_stability_figures():
             highlight_imag = [p[2] for p in plt_points]
             if plot_idx == 0:
                 for i, (x, r, im) in enumerate(zip(highlight_x, highlight_real, highlight_imag)):
-                    color = get_eigvalue_color(im)
-                    fig_stab_real.scatter(x, r, color=color, marker='.', s=150)
+                    color_im = get_eigvalue_color(im)
+                    fig_stab_real.scatter(x, r, color=color_im, marker='.', s=150)
                     x_ind = np.where(xdata == x)[0][0]
-                    fig_u.scatter(x, yudata[x_ind], color=color, marker='.', s=150)
-                    fig_T.scatter(x, yTdata[x_ind], color=color, marker='.', s=150)
-                    fig_B.scatter(x, yBdata[x_ind], color=color, marker='.', s=150)
+                    fig_u.scatter(x, yudata[x_ind], color=color_im, marker='.', s=150)
+                    fig_T.scatter(x, yTdata[x_ind], color=color_im, marker='.', s=150)
+                    fig_B.scatter(x, yBdata[x_ind], color=color_im, marker='.', s=150)
             if plot_idx == 1:
                 for i, (x, r, im) in enumerate(zip(highlight_x, highlight_real, highlight_imag)):
                     color = get_eigvalue_color(im)
