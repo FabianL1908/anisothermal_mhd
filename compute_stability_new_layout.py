@@ -370,7 +370,7 @@ def mark_boundary_eigs(outer_list, orientation, yreal, yimag, plt_idx):
                 if orientation == "left":
                     idx = 0 if yreal[0][0] < MY_INF else 1
                 elif orientation == "right":
-                    idx = -2 if yreal[-1][0] < MY_INF else -3
+                    idx = -1 if yreal[-1][0] < MY_INF else -2
     #            import ipdb; ipdb.set_trace()
                 r = yreal[idx]
                 threshold = 0.0 if pos == "up" else 10.0
