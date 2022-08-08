@@ -381,6 +381,10 @@ def mark_boundary_eigs(outer_list, orientation, yreal, yimag, plt_idx):
                 return [plt_idx, real_pos[imags>=0][min_ind], imags[imags>=0][min_ind]]
     return None
 
+def get_eigvalue_color(im):
+    tol = 5.0
+    return "g" if np.abs(im) < tol else "r"
+
 
 def plot_stability_figures():
     branchids_dict = get_branches()
@@ -401,10 +405,10 @@ def plot_stability_figures():
         fig_T = fig.add_subplot(grid[:8, 9:])
         fig_B = fig.add_subplot(grid[9:, :8])
         if len_branch == 1:
-            fig_stab_real = fig.add_subplot(grid[9:11, 9:])
+            fig_stab_real = fig.add_subplot(grid[9:12, 9:])
         if len_branch == 2:
-            fig_stab_real = fig.add_subplot(grid[9:11, 9:])
-            fig_stab_real2 = fig.add_subplot(grid[12:14, 9:])
+            fig_stab_real = fig.add_subplot(grid[9:12, 9:])
+            fig_stab_real2 = fig.add_subplot(grid[14:, 9:])
         if len_branch == 3:
             fig_stab_real = fig.add_subplot(grid[9:11, 9:])
             fig_stab_real2 = fig.add_subplot(grid[12:14, 9:])
@@ -525,25 +529,29 @@ def plot_stability_figures():
             fig_T.plot(xdata, yTdata, color=color, linestyle=linestyle)
             fig_B.plot(xdata, yBdata, color=color, linestyle=linestyle)
             color3 = "b"
-            try:
-                highlight_x = [xdata[p[0]] for p in plt_points]
-                highlight_real = [p[1] for p in plt_points]
-                highlight_imag = [p[2] for p in plt_points]
-                color_order = [2,1,3,4,5]
-                colors = get_colors()
-                colors = [colors[idx] for idx in color_order]
-                if plot_idx == 0:
-                    for i, (x, r) in enumerate(zip(highlight_x, highlight_real)):            
-                        fig_stab_real.scatter(x, r, color=colors[i], marker='.', s=150)
-                if plot_idx == 1:
-                    for i, (x, r) in enumerate(zip(highlight_x, highlight_real)):            
-                        fig_stab_real2.scatter(x, r, color=colors[i], marker='.', s=150)
-                if plot_idx == 2:
-                    for i, (x, r) in enumerate(zip(highlight_x, highlight_real)):            
-                        fig_stab_real3.scatter(x, r, color=colors[i], marker='.', s=150)
-            except:
-                import ipdb; ipdb.set_trace()
-                pass
+#            try:
+            highlight_x = [xdata[p[0]] for p in plt_points]
+            highlight_real = [p[1] for p in plt_points]
+            highlight_imag = [p[2] for p in plt_points]
+            if plot_idx == 0:
+                for i, (x, r, im) in enumerate(zip(highlight_x, highlight_real, highlight_imag)):
+                    color = get_eigvalue_color(im)
+                    fig_stab_real.scatter(x, r, color=color, marker='.', s=150)
+                    x_ind = np.where(xdata == x)[0][0]
+                    fig_u.scatter(x, yudata[x_ind], color=color, marker='.', s=150)
+                    fig_T.scatter(x, yTdata[x_ind], color=color, marker='.', s=150)
+                    fig_B.scatter(x, yBdata[x_ind], color=color, marker='.', s=150)
+            if plot_idx == 1:
+                for i, (x, r, im) in enumerate(zip(highlight_x, highlight_real, highlight_imag)):
+                    color = get_eigvalue_color(im)
+                    fig_stab_real2.scatter(x, r, color=color, marker='.', s=150)
+            if plot_idx == 2:
+                for i, (x, r, im) in enumerate(zip(highlight_x, highlight_real, highlight_imag)):
+                    color = get_eigvalue_color(im)
+                    fig_stab_real3.scatter(x, r, color=color, marker='.', s=150)
+#            except:
+#                import ipdb; ipdb.set_trace()
+#                pass
             #import ipdb; ipdb.set_trace()
             for i in range(0, num_eigs):
                 try:
