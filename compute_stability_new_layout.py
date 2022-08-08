@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 12})
 rc('text', usetex=True)
-rc('lines', linewidth=0.7)
+rc('lines', linewidth=1.2)
 rc('lines', markersize=3)
 plt.rcParams['ytick.right'] = True
 from matplotlib.offsetbox import *
@@ -395,16 +395,20 @@ def plot_stability_figures():
 #        fig_stab_imag = fig.add_subplot(grid[4:, 2:])
 #        colors = get_colors()
         len_branch = len(branchids_dict[b_key])
-        fig = plt.figure(figsize=(12,8))
-        grid = plt.GridSpec(12, 12, top=0.96, bottom=0.1, hspace=50, wspace=400)
-        fig_u = fig.add_subplot(grid[:6, :6])
-        fig_T = fig.add_subplot(grid[:6, 6:])
-        fig_B = fig.add_subplot(grid[6:, :6])
-        fig_stab_real = fig.add_subplot(grid[6:8, 6:])
+        fig = plt.figure(figsize=(10,6))
+        grid = plt.GridSpec(17, 17, top=0.96, bottom=0.1, hspace=500, wspace=1000)
+        fig_u = fig.add_subplot(grid[:8, :8])
+        fig_T = fig.add_subplot(grid[:8, 9:])
+        fig_B = fig.add_subplot(grid[9:, :8])
+        if len_branch == 1:
+            fig_stab_real = fig.add_subplot(grid[9:11, 9:])
         if len_branch == 2:
-            fig_stab_real2 = fig.add_subplot(grid[8:10, 6:])
-        elif len_branch == 3:
-            fig_stab_real3 = fig.add_subplot(grid[10:, 6:])
+            fig_stab_real = fig.add_subplot(grid[9:11, 9:])
+            fig_stab_real2 = fig.add_subplot(grid[12:14, 9:])
+        if len_branch == 3:
+            fig_stab_real = fig.add_subplot(grid[9:11, 9:])
+            fig_stab_real2 = fig.add_subplot(grid[12:14, 9:])
+            fig_stab_real3 = fig.add_subplot(grid[15:, 9:])
         colors = get_colors()
         color = colors[int(b_key)-1]
         linestyles = get_linestyles()
@@ -626,15 +630,12 @@ def plot_stability_figures():
             real_ylim[0] = min(fig_stab_real.get_ylim()[0], fig_stab_real2.get_ylim()[0])
             real_ylim[1] = max(fig_stab_real.get_ylim()[1], fig_stab_real2.get_ylim()[1])
             fig_stab_real.set_ylim(real_ylim)
-            fig_stab_imag.set_ylim(imag_ylim)
             fig_stab_real2.set_ylim(real_ylim)
-            fig_stab_imag2.set_ylim(imag_ylim)
         if len_branch >= 3:
             fig_stab_real3.set_xlabel(xlabel_str)
             fig_stab_real3.set_ylabel(r"$\mathcal{R}(\lambda)$", rotation=0, labelpad=15)
             y0 = fig_stab_real3.get_ylim()[0]
             fig_stab_real3.set_ylim(bottom=y0-2)
-            y0 = fig_stab_imag3.get_ylim()[0]
             if fig_stab_real3.get_ylim()[1] < 10.0:
 #                y0 = fig_stab_real2.get_ylim()[1]
                 fig_stab_real3.set_ylim(top=10)
@@ -642,11 +643,8 @@ def plot_stability_figures():
             fig_stab_real3.axhline(0, color='black')
             fig_stab_real3.set_xlim(xlims)
             real_ylim = list(fig_stab_real.get_ylim())
-            imag_ylim = list(fig_stab_imag.get_ylim())
             real_ylim[0] = min(fig_stab_real.get_ylim()[0], fig_stab_real3.get_ylim()[0])
             real_ylim[1] = max(fig_stab_real.get_ylim()[1], fig_stab_real3.get_ylim()[1])
-            imag_ylim[0] = min(fig_stab_imag.get_ylim()[0], fig_stab_imag3.get_ylim()[0])
-            imag_ylim[1] = max(fig_stab_imag.get_ylim()[1], fig_stab_imag3.get_ylim()[1])
             fig_stab_real.set_ylim(real_ylim)
             fig_stab_real2.set_ylim(real_ylim)
             fig_stab_real3.set_ylim(real_ylim)
