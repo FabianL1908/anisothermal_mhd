@@ -370,7 +370,7 @@ def mark_boundary_eigs(outer_list, orientation, yreal, yimag, plt_idx):
                 if orientation == "left":
                     idx = 0 if yreal[0][0] < MY_INF else 1
                 elif orientation == "right":
-                    idx = -1 if yreal[-1][0] < MY_INF else -2
+                    idx = -2 if yreal[-1][0] < MY_INF else -3
     #            import ipdb; ipdb.set_trace()
                 r = yreal[idx]
                 threshold = 0.0 if pos == "up" else 10.0
@@ -382,7 +382,7 @@ def mark_boundary_eigs(outer_list, orientation, yreal, yimag, plt_idx):
     return None
 
 def get_eigvalue_color(im):
-    tol = 5.0
+    tol = 10.0
     return "g" if np.abs(im) < tol else "r"
 
 
@@ -543,12 +543,20 @@ def plot_stability_figures():
                     fig_B.scatter(x, yBdata[x_ind], color=color_im, marker='.', s=150)
             if plot_idx == 1:
                 for i, (x, r, im) in enumerate(zip(highlight_x, highlight_real, highlight_imag)):
-                    color = get_eigvalue_color(im)
-                    fig_stab_real2.scatter(x, r, color=color, marker='.', s=150)
+                    color_im = get_eigvalue_color(im)
+                    fig_stab_real2.scatter(x, r, color=color_im, marker='.', s=150)
+                    x_ind = np.where(xdata == x)[0][0]
+                    fig_u.scatter(x, yudata[x_ind], color=color_im, marker='.', s=150)
+                    fig_T.scatter(x, yTdata[x_ind], color=color_im, marker='.', s=150)
+                    fig_B.scatter(x, yBdata[x_ind], color=color_im, marker='.', s=150)
             if plot_idx == 2:
                 for i, (x, r, im) in enumerate(zip(highlight_x, highlight_real, highlight_imag)):
-                    color = get_eigvalue_color(im)
-                    fig_stab_real3.scatter(x, r, color=color, marker='.', s=150)
+                    color_im = get_eigvalue_color(im)
+                    x_ind = np.where(xdata == x)[0][0]
+                    fig_stab_real3.scatter(x, r, color=color_im, marker='.', s=150)
+                    fig_u.scatter(x, yudata[x_ind], color=color_im, marker='.', s=150)
+                    fig_T.scatter(x, yTdata[x_ind], color=color_im, marker='.', s=150)
+                    fig_B.scatter(x, yBdata[x_ind], color=color_im, marker='.', s=150)
 #            except:
 #                import ipdb; ipdb.set_trace()
 #                pass
