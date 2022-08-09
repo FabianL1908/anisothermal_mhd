@@ -17,6 +17,7 @@ rc('lines', markersize=3)
 plt.rcParams['ytick.right'] = True
 from matplotlib.offsetbox import *
 import matplotlib.image as mpimg
+import matplotlib.patches as patches
 from PIL import Image
 import warnings
 from scipy import ndimage
@@ -381,10 +382,9 @@ def mark_boundary_eigs(outer_list, orientation, yreal, yimag, plt_idx):
                 return [plt_idx, real_pos[imags>=0][min_ind], imags[imags>=0][min_ind]]
     return None
 
-def get_eigvalue_color(im):
+def get_eigvalue_props(im):
     tol = 10.0
-    return "g" if np.abs(im) < tol else "r"
-
+    return  ("g", ".", 150) if np.abs(im) < tol else ("r", "D", 25)
 
 def plot_stability_figures():
     branchids_dict = get_branches()
@@ -419,6 +419,22 @@ def plot_stability_figures():
         linestyle = linestyles[int(b_key)-1]
         num_eigs = num_eigs_dict[b_key] if b_key in num_eigs_dict else num_eigs_default
         num_eigs = int(num_eigs)
+
+        # plot rectangle box for first graph to indicate zoom in
+        if b_key == "1":
+            lw = 0.7
+            
+            rect_u = patches.Rectangle((35500, 40), 3000, 30, linestyle="--", linewidth=lw, edgecolor='k', facecolor='none')
+            rect_T = patches.Rectangle((35500, 0.3217), 2500, 0.002,linestyle="--", linewidth=lw, edgecolor='k', facecolor='none')
+            rect_B = patches.Rectangle((35500, 1.035), 3000, 0.175, linestyle="--", linewidth=lw, edgecolor='k', facecolor='none')
+            rect_real = patches.Rectangle((35500, -20), 3000, 45, linestyle="--", linewidth=lw, edgecolor='k', facecolor='none')
+
+
+            fig_u.add_patch(rect_u)
+            fig_T.add_patch(rect_T)
+            fig_B.add_patch(rect_B)
+            fig_stab_real.add_patch(rect_real)
+        
 
         for plot_idx, outer_list in enumerate(branchids_dict[b_key]):
             xdata = np.array([])
@@ -535,28 +551,28 @@ def plot_stability_figures():
             highlight_imag = [p[2] for p in plt_points]
             if plot_idx == 0:
                 for i, (x, r, im) in enumerate(zip(highlight_x, highlight_real, highlight_imag)):
-                    color_im = get_eigvalue_color(im)
-                    fig_stab_real.scatter(x, r, color=color_im, marker='.', s=150)
+                    color_im, marker_im, scale_im = get_eigvalue_props(im)
+                    fig_stab_real.scatter(x, r, color=color_im, marker=marker_im, s=scale_im)
                     x_ind = np.where(xdata == x)[0][0]
-                    fig_u.scatter(x, yudata[x_ind], color=color_im, marker='.', s=150)
-                    fig_T.scatter(x, yTdata[x_ind], color=color_im, marker='.', s=150)
-                    fig_B.scatter(x, yBdata[x_ind], color=color_im, marker='.', s=150)
+                    fig_u.scatter(x, yudata[x_ind], color=color_im, marker=marker_im, s=scale_im)
+                    fig_T.scatter(x, yTdata[x_ind], color=color_im, marker=marker_im, s=scale_im)
+                    fig_B.scatter(x, yBdata[x_ind], color=color_im, marker=marker_im, s=scale_im)
             if plot_idx == 1:
                 for i, (x, r, im) in enumerate(zip(highlight_x, highlight_real, highlight_imag)):
-                    color_im = get_eigvalue_color(im)
-                    fig_stab_real2.scatter(x, r, color=color_im, marker='.', s=150)
+                    color_im, marker_im, scale_im = get_eigvalue_props(im)
+                    fig_stab_real2.scatter(x, r, color=color_im, marker=marker_im, s=scale_im)
                     x_ind = np.where(xdata == x)[0][0]
-                    fig_u.scatter(x, yudata[x_ind], color=color_im, marker='.', s=150)
-                    fig_T.scatter(x, yTdata[x_ind], color=color_im, marker='.', s=150)
-                    fig_B.scatter(x, yBdata[x_ind], color=color_im, marker='.', s=150)
+                    fig_u.scatter(x, yudata[x_ind], color=color_im, marker=marker_im, s=scale_im)
+                    fig_T.scatter(x, yTdata[x_ind], color=color_im, marker=marker_im, s=scale_im)
+                    fig_B.scatter(x, yBdata[x_ind], color=color_im, marker=marker_im, s=scale_im)
             if plot_idx == 2:
                 for i, (x, r, im) in enumerate(zip(highlight_x, highlight_real, highlight_imag)):
-                    color_im = get_eigvalue_color(im)
+                    color_im, marker_im, scale_im = get_eigvalue_props(im)
                     x_ind = np.where(xdata == x)[0][0]
-                    fig_stab_real3.scatter(x, r, color=color_im, marker='.', s=150)
-                    fig_u.scatter(x, yudata[x_ind], color=color_im, marker='.', s=150)
-                    fig_T.scatter(x, yTdata[x_ind], color=color_im, marker='.', s=150)
-                    fig_B.scatter(x, yBdata[x_ind], color=color_im, marker='.', s=150)
+                    fig_stab_real3.scatter(x, r, color=color_im, marker=marker_im, s=scale_im)
+                    fig_u.scatter(x, yudata[x_ind], color=color_im, marker=marker_im, s=scale_im)
+                    fig_T.scatter(x, yTdata[x_ind], color=color_im, marker=marker_im, s=scale_im)
+                    fig_B.scatter(x, yBdata[x_ind], color=color_im, marker=marker_im, s=scale_im)
 #            except:
 #                import ipdb; ipdb.set_trace()
 #                pass
