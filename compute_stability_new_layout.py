@@ -387,6 +387,10 @@ def get_eigvalue_props(im):
     return  ("g", ".", 150) if np.abs(im) < tol else ("r", "D", 25)
 
 def plot_stability_figures():
+    try:
+        os.remove("highlight_points.csv")
+    except:
+        pass
     branchids_dict = get_branches()
     rot_degree_dict = get_rot_degree_dict()
     for b_key in branchids_dict:
@@ -405,7 +409,7 @@ def plot_stability_figures():
         fig_T = fig.add_subplot(grid[:8, 9:])
         fig_B = fig.add_subplot(grid[9:, :8])
         if len_branch == 1:
-            fig_stab_real = fig.add_subplot(grid[9:12, 9:])
+            fig_stab_real = fig.add_subplot(grid[11:15, 9:])
         if len_branch == 2:
             fig_stab_real = fig.add_subplot(grid[9:12, 9:])
             fig_stab_real2 = fig.add_subplot(grid[14:, 9:])
@@ -434,8 +438,8 @@ def plot_stability_figures():
             fig_T.add_patch(rect_T)
             fig_B.add_patch(rect_B)
             fig_stab_real.add_patch(rect_real)
-        
 
+        output_data = []
         for plot_idx, outer_list in enumerate(branchids_dict[b_key]):
             xdata = np.array([])
             yudata = np.array([])
@@ -557,6 +561,10 @@ def plot_stability_figures():
                     fig_u.scatter(x, yudata[x_ind], color=color_im, marker=marker_im, s=scale_im)
                     fig_T.scatter(x, yTdata[x_ind], color=color_im, marker=marker_im, s=scale_im)
                     fig_B.scatter(x, yBdata[x_ind], color=color_im, marker=marker_im, s=scale_im)
+                    output_data.append([f"branch {b_key}-{plot_idx}", "real_eigs", f"{x}", f"{yudata[x_ind]}", color_im])
+                    output_data.append([f"branch {b_key}", "diagram_u", f"{x}", f"{yudata[x_ind]}", color_im])
+                    output_data.append([f"branch {b_key}", "diagram_T", f"{x}", f"{yTdata[x_ind]}", color_im])
+                    output_data.append([f"branch {b_key}", "diagram_B", f"{x}", f"{yBdata[x_ind]}", color_im])
             if plot_idx == 1:
                 for i, (x, r, im) in enumerate(zip(highlight_x, highlight_real, highlight_imag)):
                     color_im, marker_im, scale_im = get_eigvalue_props(im)
@@ -565,6 +573,10 @@ def plot_stability_figures():
                     fig_u.scatter(x, yudata[x_ind], color=color_im, marker=marker_im, s=scale_im)
                     fig_T.scatter(x, yTdata[x_ind], color=color_im, marker=marker_im, s=scale_im)
                     fig_B.scatter(x, yBdata[x_ind], color=color_im, marker=marker_im, s=scale_im)
+                    output_data.append([f"branch {b_key}-{plot_idx}", "real_eigs", f"{x}", f"{yudata[x_ind]}", color_im])
+                    output_data.append([f"branch {b_key}", "diagram_u", f"{x}", f"{yudata[x_ind]}", color_im])
+                    output_data.append([f"branch {b_key}", "diagram_T", f"{x}", f"{yTdata[x_ind]}", color_im])
+                    output_data.append([f"branch {b_key}", "diagram_B", f"{x}", f"{yBdata[x_ind]}", color_im])
             if plot_idx == 2:
                 for i, (x, r, im) in enumerate(zip(highlight_x, highlight_real, highlight_imag)):
                     color_im, marker_im, scale_im = get_eigvalue_props(im)
@@ -573,6 +585,10 @@ def plot_stability_figures():
                     fig_u.scatter(x, yudata[x_ind], color=color_im, marker=marker_im, s=scale_im)
                     fig_T.scatter(x, yTdata[x_ind], color=color_im, marker=marker_im, s=scale_im)
                     fig_B.scatter(x, yBdata[x_ind], color=color_im, marker=marker_im, s=scale_im)
+                    output_data.append([f"branch {b_key}-{plot_idx}", "real_eigs", f"{x}", f"{yudata[x_ind]}", color_im])
+                    output_data.append([f"branch {b_key}", "diagram_u", f"{x}", f"{yudata[x_ind]}", color_im])
+                    output_data.append([f"branch {b_key}", "diagram_T", f"{x}", f"{yTdata[x_ind]}", color_im])
+                    output_data.append([f"branch {b_key}", "diagram_B", f"{x}", f"{yBdata[x_ind]}", color_im])
 #            except:
 #                import ipdb; ipdb.set_trace()
 #                pass
@@ -623,6 +639,11 @@ def plot_stability_figures():
             ab_list = add_annotationbox(B_image_files, xdata, yBdata, rot_degree_dict[int(b_key)])
             for ab in ab_list:
                 fig_B.add_artist(ab)
+#        import ipdb; ipdb.set_trace()
+        with open("highlight_points.csv", "a") as f:
+             writer = csv.writer(f)
+#             output_data = [str(ff) for f in output_data for ff in f]
+             writer.writerows(output_data)
         xlabel_str = r"$\mathrm{" + mode + "}$"
         fig_u.set_xlabel(xlabel_str)
 #        import matplotlib.ticker as ticker
